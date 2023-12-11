@@ -1,0 +1,29 @@
+submodule l3internet-generate-default-route {
+  belongs-to l3internet {
+      prefix l3internet;
+  }
+
+  import ietf-inet-types {
+      prefix inet;
+  }
+  import tailf-ncs {
+      prefix ncs;
+  }
+  import tailf-common {
+      prefix tailf;
+  }
+
+  augment /ncs:services {
+    list generate-default-route {
+      key device;
+
+      uses ncs:service-data;
+      ncs:servicepoint "generate-default-route-servicepoint";
+      leaf device {
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+    }
+  }
+}

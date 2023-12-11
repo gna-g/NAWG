@@ -1,0 +1,113 @@
+module node_create {
+    namespace "http://nl/surfnet/node_create";
+    prefix node_create;
+
+    import tailf-common {
+        prefix tailf;
+    }
+    import ietf-yang-types {
+        prefix yang;
+    }
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import junos {
+        prefix junos;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    augment /ncs:services {
+        list node_create {
+            key name;
+            unique device;
+            unique loopback0;
+            unique loopback0v6;
+            unique sr_segment_node_id;
+
+            uses ncs:service-data;
+            ncs:servicepoint node_create-servicepoint;
+
+            leaf name {
+                tailf:info "Provide <uuid>";
+                type string;
+            }
+
+            uses surfnet:workflow_service;
+
+            leaf device {
+                tailf:info "Define device:";
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+                mandatory true;
+            }
+
+            leaf location {
+                tailf:info "Provide location of node:";
+                mandatory true;
+                type string;
+            }
+
+            leaf loopback0 {
+                tailf:info "Provide the loopback0 address (145.x.x.x without mask):";
+                type inet:ipv4-address;
+                mandatory true;
+            }
+
+            leaf loopback0v6 {
+                tailf:info "Provide the loopback0 address:";
+                type inet:ipv6-address;
+            }
+
+            leaf iso_address {
+                type junos:isoaddr;
+                config false;
+                tailf:cdb-oper;
+            }
+
+            leaf sr_segment_node_id {
+                tailf:info "Segment routing segment node id";
+                mandatory true;
+                type uint16 {
+                    range "0..1999";
+                }
+            }
+
+            leaf enable_route_reflector_connection {
+                tailf:info "Enable configuration to build a connection to and from the route reflectors";
+                type boolean;
+                default false;
+            }
+
+            leaf bgp_full_table {
+                tailf:info "Sets if the node shall receive a full internet table (default is as-surfnet only)";
+                type boolean;
+                default false;
+            }
+
+            leaf fpcs {
+                tailf:info "Fpcs in device";
+                type string;
+                config false;
+                tailf:cdb-oper {
+                    tailf:persistent true;
+                }
+            }
+
+            leaf has_redundant_re {
+                tailf:info "device has second re";
+                type boolean;
+                default false;
+                config false;
+                tailf:cdb-oper {
+                    tailf:persistent true;
+                }
+            }
+        }
+    }
+}

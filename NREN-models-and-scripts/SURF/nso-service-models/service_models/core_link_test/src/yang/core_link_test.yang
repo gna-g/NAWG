@@ -1,0 +1,80 @@
+module core_link_test {
+
+    namespace "http://nl/surfnet/core_link_test";
+    prefix core_link_test;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import junos {
+        prefix junos;
+    }
+
+    augment /ncs:services {
+        list core_link_test {
+            tailf:info "Core link link test service";
+            key name;
+            unique "device1 interface1";
+            unique "device2 interface2";
+
+            uses ncs:service-data;
+            ncs:servicepoint core_link_test-servicepoint;
+
+            leaf name {
+                tailf:info "Provide <uuid>";
+                type string;
+            }
+
+            leaf device1 {
+                tailf:info "Select device1";
+                mandatory true;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf interface1 {
+                tailf:info "Interface1 on device (eg xe-1/0/2)";
+                mandatory true;
+                type string;
+            }
+
+            leaf address1 {
+                tailf:info "Local IP Address 145.x.x.x";
+                config false;
+                tailf:cdb-oper;
+                type inet:ipv4-address;
+            }
+
+            leaf device2 {
+                tailf:info "Select device2";
+                mandatory true;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf interface2 {
+                tailf:info "Interface on other device (eg xe-1/0/2)";
+                mandatory true;
+                type string;
+            }
+
+            leaf address2 {
+                tailf:info "Remote IP Address 145.x.x.x+1";
+                config false;
+                tailf:cdb-oper;
+                type inet:ipv4-address;
+            }
+        }
+    }
+}

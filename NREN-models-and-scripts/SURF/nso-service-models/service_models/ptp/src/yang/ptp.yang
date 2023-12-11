@@ -1,0 +1,204 @@
+module ptp {
+    namespace "http://nl/surfnet/ptp";
+    prefix ptp;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    grouping device {
+        leaf device {
+            description
+              "Device";
+            tailf:info "Device";
+            type leafref {
+                path "/ncs:devices/ncs:device/ncs:name";
+            }
+            mandatory true;
+        }
+    }
+
+    grouping interface {
+        uses device;
+
+        leaf interface {
+            description
+              "The interface.
+               We're using re-match and count XPATH must functions to filter correct interfaces without a unit.
+               We also make sure interface is not already being used in other port-aggr service";
+            tailf:info "Interface name;;You can only choose Interfaces that have a ptp service applied which is not of the type 'lm'";
+            mandatory true;
+            type leafref {
+                path "/ncs:services/ptp:ptp/ptp:interface";
+            }
+        }
+    }
+
+    grouping speed_check_output {
+        leaf device {
+            type string;
+        }
+
+        leaf port {
+            type string;
+        }
+
+        leaf actual_speed {
+            type string;
+        }
+
+        leaf service_name {
+            type string;
+        }
+
+        leaf service_speed {
+            type string;
+        }
+
+        leaf fpc_config_speed {
+            type string;
+        }
+
+        leaf in_sync {
+            type boolean;
+        }
+
+        leaf fpc_speed_in_sync {
+            type boolean;
+        }
+
+        leaf service_speed_in_sync {
+            type boolean;
+        }
+    }
+
+    augment /ncs:services {
+        list ptp {
+            tailf:info "Provide unique port ID";
+            key name;
+            unique "device interface";
+
+            uses ncs:service-data;
+            ncs:servicepoint ptp-servicepoint;
+
+            leaf name {
+                tailf:info "<uuid:string>";
+                mandatory true;
+                type string;
+            }
+
+            leaf device {
+                tailf:info "Select device";
+                mandatory true;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf interface {
+                tailf:info "Interface on device (eg xe-1/0/2)";
+                mandatory true;
+                type string;
+            }
+
+            uses surfnet:workflow_customer_service;
+
+            leaf speed {
+                when "not( starts-with(../interface, 'ae')) and not( starts-with(../interface, 'irb'))";
+                tailf:info "Interface speed";
+                type enumeration {
+                    enum "1g";
+                    enum "10g";
+                    enum "40g";
+                    enum "100g";
+                    enum "400g";
+                    enum "other";
+                }
+            }
+
+            leaf auto_negotiation {
+                tailf:info "Enable auto-negotiation for 1G ports";
+                type boolean;
+                default true;
+                when "../speed = '1g'";
+            }
+
+            leaf native_vlan_id {
+                when "not( starts-with(../interface, 'ae')) and ../ptptype = 'tagged'";
+                tailf:info "The native vlan_id
+                    This is 1..4094 available on tagged interfaces (no AGGSP or MSC)";
+                type uint32 {
+                    range "1..4094";
+                }
+            }
+
+            leaf ignore_l3_incompletes {
+                tailf:info "Ignore l3-incompletes";
+                type boolean;
+                default false;
+                when "../ptptype != 'irb'";
+            }
+
+            leaf lldp {
+                tailf:info "Enable LLDP";
+                type boolean;
+                default false;
+            }
+
+            leaf ptptype {
+                tailf:info "Select untagged, tagged, lm or irb";
+                default tagged;
+                must "not( starts-with(../interface, 'ae')) or current() != 'lm'" {
+                    error-message "Aggregates can not have ptptype = 'lm'";
+                }
+                must "not( starts-with(../speed, '1g')) or current() != 'lm'" {
+                    error-message "No 1Gb/s link members are allowed in aggregates, minimal link member speed is 10Gb/s"; 
+                }
+                type enumeration {
+                    enum "untagged";
+                    enum "tagged";
+                    enum "lm";
+                    enum "irb";
+                }
+            }
+
+            leaf core_link_member {
+                description "Is this ptp part of a core link (internal use only)";
+                tailf:info "Is this ptp part of a core link (internal use only)";
+                type boolean;
+                default false;
+            }
+
+            tailf:action check-speed {
+                tailf:actionpoint check-speed-point;
+                input {
+                }
+                output {
+                    list result {
+                    uses speed_check_output;
+                    }
+                }
+            }
+        }
+
+        tailf:action check-ptp-speeds {
+            tailf:actionpoint check-ptp-speeds-point;
+            input {
+            }
+            output {
+                list result {
+                   uses speed_check_output;
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,115 @@
+module vrr_interconnect {
+
+  namespace "http://example.com/vrr_interconnect";
+  prefix vrr_interconnect;
+
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  } 
+  import tailf-ncs {
+    prefix ncs;	
+  }
+  import surfnet-common {
+    prefix surfnet;
+  }
+  import ptp {
+    prefix ptp;
+  }
+
+  description
+    "Service Model to connect Virtual Route Reflectors (VRR)";
+
+  augment /ncs:services {
+    list vrr_interconnect {
+      description "Service Model for the connection of Virtual Route Reflectors (VRR) to the core or to other VRR using a LAN.";
+
+      key name;
+      unique "core_router interface_core_router vlan_id";
+
+      leaf name {
+	tailf:info "Unique service id";
+	type string;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint vrr_interconnect-servicepoint;
+
+      leaf core_router {
+	tailf:info "Select core router";
+	mandatory true;
+	type leafref {
+	  path "/ncs:devices/ncs:device/ncs:name";
+	}
+      }
+
+      leaf interface_core_router {
+	tailf:info "Select ptp interface on core router";
+	mandatory true;
+	type leafref {
+	  path "/ncs:services/ptp:ptp/ptp:interface";
+	}
+      }
+
+      leaf address_core_router {
+	tailf:info "Core router IP Address 145.145.x.x/29";
+	mandatory true;
+	type tailf:ipv4-address-and-prefix-length;
+      }
+    
+      leaf address_core_routerv6 {
+	tailf:info "Local IPv6 Address 2001:610:fc7::145:145:x:x/64";
+	type tailf:ipv6-address-and-prefix-length;
+      }
+
+      leaf vlan_id {
+	tailf:info "The vlan_id for this LAN on each of the connecting routers (core & VRR). This is 1..4094 (tagged)";
+	mandatory true;
+	type uint32 {
+	  range "1..4094";
+	}
+      }
+      
+      leaf isis-metric {
+	tailf:info "ISIS metric for the vrr_interconnect link";
+	default "16777214";
+	type string;
+      }
+    
+      list vrr_routers {
+	tailf:info "list of vrr_routers";
+	key vrr_router;
+
+	leaf vrr_router {
+	  tailf:info "Select vrr router";
+	  mandatory true;
+	  type leafref {
+	    path "/ncs:devices/ncs:device/ncs:name";
+	  }
+	}
+
+	leaf interface_id {
+	  tailf:info "Interface on vrr (typically em1 / em2 for core connections)";
+	  mandatory true;
+	  type string;
+	}
+
+	leaf address {
+	  tailf:info "VRR router IP Address 145.145.x.x/29";
+	  mandatory true;
+	  type tailf:ipv4-address-and-prefix-length;
+	}
+    
+	leaf addressv6 {
+	  tailf:info "VRR IPv6 Address 2001:610:fc7::145:145:x:x/64";
+	  type tailf:ipv6-address-and-prefix-length;
+	}
+      }
+    }
+  }
+}

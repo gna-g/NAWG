@@ -1,0 +1,263 @@
+module l3vpn {
+    namespace "http://nso.dcn.surf.net/l3vpn";
+    prefix l3vpn;
+
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    import junos {
+        prefix junos;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    import ptp {
+        prefix ptp;
+    }
+    import sap {
+        prefix sap;
+    }
+
+    grouping endpoint {
+        description
+          "define common parameters for a UNI endpoint.";
+
+        uses ptp:interface;
+        uses surfnet:workflow_service_instance;
+
+        container tagged_info {
+            description
+              "define specific tagged port values. Only defined if ptptype=tagged and selected port has right encapsulation";
+            tailf:info "provide specific tagged port information";
+
+            leaf outervlan {
+                description
+                  "outer vlan id or s-tag";
+                tailf:info "UNI outer vlan id on tagged port";
+                type uint32 {
+                    range "1..4096";
+                }
+            }
+
+            leaf innervlan {
+                description
+                  "define specific tagged port values. Only defined if ptptype=tagged and selected port has right encapsulation";
+                tailf:info "UNI inner vlan id on tagged port. Is ignored on irb";
+                type uint32 {
+                    range "1..4096";
+                }
+            }
+        }
+
+        container ipv4 {
+
+            leaf address {
+                tailf:info "Local IP Address plus prefix length (x.x.x.x/x)";
+                type tailf:ipv4-address-and-prefix-length;
+                must "current() | ../../ipv6/address" {
+                    error-message "Either an ipv4 or ipv6 address must be configured";
+                }
+            }
+
+            leaf mtu {
+                tailf:info "Provide the IPv4 MTU";
+                default 1500;
+                type uint32 {
+                    range "1500..9000";
+                }
+                when "../address";
+            }
+
+            leaf remote_address {
+                tailf:info "Remote IP Address (x.x.x.x)";
+                type inet:ipv4-address;
+                mandatory true;
+                when "../address";
+            }
+
+            leaf max_prefixes {
+                tailf:info "Max number of ipv4 prefixes";
+                type uint32;
+                default 1000;
+                when "../address";
+            }
+        }
+
+        container ipv6 {
+            leaf address {
+                tailf:info "Local IPv6 Address plus prefix length (2001:610:fc7::145:145:x:x/xx)";
+                type tailf:ipv6-address-and-prefix-length;
+            }
+
+            leaf mtu {
+                tailf:info "Provide the IPv6 MTU";
+                default 1500;
+                type uint32 {
+                    range "1500..9000";
+                }
+                when "../address";
+            }
+
+            leaf remote_address {
+                tailf:info "Remote IPv6 Address (2001:610:fc7::145:145:x:x)";
+                type inet:ipv6-address;
+                mandatory true;
+                when "../address";
+            }
+
+             leaf max_prefixes {
+                tailf:info "Max number of ipv6 prefixes";
+                type uint32;
+                default 1000;
+                when "../address";
+            }
+
+        }
+
+        container bfd {
+            leaf bfd_enabled {
+                tailf:info "Enable BFD on the BGP session; default false";
+                type boolean;
+                default "false";
+            }
+
+            leaf min_int {
+                tailf:info "Minimum BFD Interval; def 900";
+                when "../bfd_enabled = 'true'";
+                type uint32 {
+                    range 1..255000;
+                }
+                default 900;
+            }
+
+            leaf multiplier {
+                tailf:info "BFD Multiplier; def 6";
+                when "../bfd_enabled = 'true'";
+                type uint16 {
+                    range 1..255;
+                }
+                default 3;
+            }
+        }
+
+        leaf auth_key {
+            tailf:info "BGP Authentication key to be used";
+            type string;
+        }
+
+        leaf routing_type {
+            tailf:info "Set routing protocol per endpoint, default BGP";
+            type string;
+            default "BGP";
+        }
+
+        leaf bgp_metric {
+            tailf:info "Set routing protocol per endpoint, default BGP";
+            type uint32 {
+                range 1..4294967295;
+            }
+        }
+
+        leaf cust_asn {
+            tailf:info "AS Number used by the customer";
+            mandatory true;
+            type inet:as-number;
+        }
+
+        leaf enable_routing {
+            tailf:info "Enable BGP routing";
+            type boolean;
+            default "true";
+        }
+
+        leaf endpoint_role {
+            tailf:info "Determines the L3VPN endpoint role";
+            description
+              "sets endpoint role, this influences the routing policy, what is announced where";
+            type enumeration {
+                enum customer;
+                enum transit;
+                enum special;
+            }
+        }
+
+        leaf urpf {
+            tailf:info "Set uRPF state of port";
+            description
+              "sets uRPF state of port";
+            type enumeration {
+                enum loose;
+                enum strict;
+                enum disabled;
+            }
+            default loose;
+       }
+    }
+
+    augment /ncs:services {
+
+        list l3vpn {
+            description
+              "This is a multipoint l3vpn service";
+            tailf:info "This is a multipoint l3vpn service";
+
+            key name;
+
+            uses ncs:service-data;
+            ncs:servicepoint l3vpn-servicepoint;
+
+            leaf name {
+                tailf:info "<uuid:string>";
+                type string;
+            }
+
+            leaf local_asn {
+                tailf:info "inet local as-number";
+                type inet:as-number;
+                default 1105;
+            }
+
+            list endpoints {
+                tailf:info "select 2 devices and their UNI interface";
+                uses l3vpn:endpoint;
+                key "device interface instance_id";
+
+                min-elements 1;
+            }
+
+            leaf speed {
+                tailf:info "Provide L3VPN speed in Mbps";
+                type uint32 {
+                    range "1..400000";
+                }
+            }
+
+            leaf enforcepolicer {
+                tailf:info "Enforce speed policer on the access port";
+                type boolean;
+                default "false";
+                when "../speed";
+            }
+
+            leaf specific_template {
+                tailf:info "Optional: specify a specific NSO XML-template to load extra for this service";
+                type enumeration {
+                    enum lhcone;
+                    enum lhcopn;
+                    enum advanced;
+                }
+            }
+            
+            uses surfnet:workflow_customer_service;
+        }
+    }
+}

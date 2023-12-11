@@ -1,0 +1,254 @@
+module surfnet_environment_config {
+    namespace "http://nl/surfnet/environment_config";
+    prefix surfnet-ec;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+
+    container environment_config {
+        description
+          "environment specific variables used in device templates";
+        tailf:info "environment specific variables used in device templates";
+
+        container authentication {
+            description
+              "Authentication settings";
+            tailf:info "Authentication settings";
+
+            leaf-list authentication-order {
+                description
+                  "Order of authentication, eg [ radius password ]";
+                tailf:info "Order of authentication, eg [ radius password ]";
+                type string;
+            }
+
+            leaf root-authentication-encrypted-password {
+                description
+                  "Root authentication password, eg $5$xxxxx";
+                tailf:info "Root authentication password, eg $5$xxxxx";
+                type string;
+            }
+
+            leaf ssh-root-login {
+                description
+                  "SSH Root login, eg allow, deny";
+                tailf:info "SSH Root login, eg allow, deny";
+                type string;
+            }
+        }
+        container prefixes {
+
+            list ssh-allow {
+                key address;
+
+                leaf address {
+                    type inet:ip-prefix;
+                }
+            }
+
+            leaf dcn {
+                description
+                  "NSO Server network prefix for firewall allow";
+                tailf:info "NSO Server network prefix for firewall allow";
+                type inet:ip-prefix;
+            }
+
+            list nso-server {
+                description
+                  "NSO Server network prefix for firewall allow";
+                tailf:info "NSO Server network prefix for firewall allow";
+
+                key address;
+
+                leaf address {
+                    type inet:ip-prefix;
+                }
+            }
+
+            leaf management {
+                description
+                  "Management network prefix for firewall allow";
+                tailf:info "Management network prefix for firewall allow";
+                type inet:ip-prefix;
+            }
+
+            leaf loopback {
+                description
+                  "Loopback network prefix for firewall allow";
+                tailf:info "Loopback network prefix for firewall allow";
+                type inet:ipv4-prefix;
+            }
+
+            leaf loopbackv6 {
+                description
+                  "Loopback network prefix for firewall allow";
+                tailf:info "Loopback network prefix for firewall allow";
+                type inet:ipv6-prefix;
+            }
+
+            leaf corelink {
+                description
+                  "Corelink network prefix";
+                tailf:info "Corelink network prefix";
+                type inet:ipv4-prefix;
+            }
+
+            leaf corelinkv6 {
+                description
+                  "Corelink network prefix";
+                tailf:info "Corelink network prefix";
+                type inet:ipv6-prefix;
+            }
+
+            leaf zone {
+                type string;
+            }
+
+            leaf iso_address {
+                type string;
+            }
+        }
+
+        container interfaces {
+            leaf core_link_mtu {
+                type uint32;
+            }
+            leaf ptp_mtu {
+                type uint32;
+            }
+        }
+
+        container routing-options {
+            leaf as-number {
+                type inet:as-number;
+            }
+        }
+
+        container protocols {
+            container isis {
+                leaf pcep-destination {
+                    type inet:ip-address;
+                }
+            }
+        }
+
+        container service {
+            description
+              "Service settings";
+            tailf:info "Service settings";
+            container dns {
+                description
+                  "DNS settings";
+                tailf:info "DNS settings";
+
+                list name_servers {
+                    description
+                      "Name server IP address, eg [ 145.145.75.4 145.145.75.5 ]";
+                    tailf:info "Name server IP address, eg [ 145.145.75.4 145.145.75.5 ]";
+                    key name;
+
+                    leaf name {
+                        type inet:ip-address;
+                    }
+                }
+            }
+
+            container ntp {
+                description
+                  "Ntp server and boot server";
+                tailf:info "Ntp server and boot server";
+
+                leaf ntp_boot_server {
+                    description
+                      "NTP boot server IP address";
+                    tailf:info "NTP boot server IP address";
+                    type inet:ip-address;
+                }
+
+                list ntp_servers {
+                    description
+                      "NTP servers IP address, eg [ 145.145.64.7 145.145.65.7 ]";
+                    tailf:info "NTP servers IP address, eg [ 145.145.64.7 145.145.65.7 ]";
+                    key name;
+
+                    leaf name {
+                        type inet:ip-address;
+                    }
+                }
+            }
+
+            container analytics {
+                description
+                  "Streaming telemetry config options";
+                leaf remote-port {
+                    description
+                      "Remote destination port for JTI traffic";
+                    type uint32;
+                }
+            }
+
+            leaf snmp {
+                description
+                  "Enable snmp
+                   This should be enabled but gives to much noise on vtestbed";
+                tailf:info "Enable snmp;;This should be enabled but gives to much noise on vtestbed";
+                type boolean;
+                default true;
+            }
+
+            leaf syslog {
+                description
+                  "Enable syslog
+                   This should be enabled but gives to much noise on vtestbed";
+                tailf:info "Enable syslog;;This should be enabled but gives to much noise on vtestbed";
+                type boolean;
+                default true;
+            }
+
+            leaf isis_overload {
+                description
+                  "Enable isis overload
+                   This should be enabled but interferes with automated tests on vtestbed";
+                tailf:info "Enable isis overload;;This should be enabled but interferes with automated tests on vtestbed";
+                type boolean;
+                default true;
+            }
+
+            leaf lacp {
+                description
+                  "Enable lacp
+                   This should be enabled but does not work on vtestbed";
+                tailf:info "Enable lacp;; This should be enabled but does not work on vtestbed";
+                type boolean;
+                default true;
+            }
+
+            leaf netflow {
+                description
+                  "Enable flow servers";
+                tailf:info "Enable flow servers";
+                type boolean;
+                default true;
+            }
+
+            container corero_ntd {
+                leaf corero_ntd_router_ip_address_and_subnet {
+                    type tailf:ipv4-address-and-prefix-length;
+                }
+                leaf corero_ntd_ip_address {
+                    type inet:ip-address;
+                }
+                leaf corero_ntd_mac_address {
+                  type string;
+                }
+                leaf corero_swa_ip_address {
+                  type inet:ip-address;
+                }
+            }
+        }
+    }
+}

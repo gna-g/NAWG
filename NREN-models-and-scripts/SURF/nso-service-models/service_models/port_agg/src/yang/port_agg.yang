@@ -1,0 +1,84 @@
+module port_agg {
+    namespace "http://nl/surfnet/port-agg";
+    prefix port_agg;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+    import ptp {
+        prefix ptp;
+    }
+
+    augment /ncs:services {
+
+        list port_agg {
+            tailf:info "Port aggregation service for a device";
+
+            key name;
+            unique "device id";
+
+            uses ncs:service-data;
+            ncs:servicepoint port_agg-servicepoint;
+
+            leaf name {
+                tailf:info "<uuid:string>";
+                type string;
+            }
+            leaf id {
+                tailf:info "port_agg id for example ae99";
+                type uint32{
+                    range "0..480"; // 480 is the VMX limit, actual mx can handle up to 1000
+                }
+                mandatory true;
+            }
+
+            leaf device {
+                tailf:info "port_agg device";
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+                mandatory true;
+            }
+
+            uses surfnet:workflow_customer_service;
+
+            leaf-list interfaces {
+                description
+                  "the individual interfaces of the port-aggr.
+                   We're using re-match and count XPATH must functions to filter correct interfaces without a unit.
+                   We also make sure interface is not already being used in other port-aggr service";
+                tailf:info "port-aggr interfaces on device";
+                type leafref {
+                    path "/ncs:services/ptp:ptp/ptp:interface";
+                }
+                min-elements 1;
+                max-elements 8;
+            }
+
+            container lacp {
+                leaf periodic {
+                    type enumeration {
+                        enum fast;
+                        enum slow;
+                    }
+                    default fast;
+                }
+            }
+
+            // leaf minimum_links {
+            //     type uint32 {
+            //         range "0..16";
+            //     }
+            // }
+        }
+    }
+}

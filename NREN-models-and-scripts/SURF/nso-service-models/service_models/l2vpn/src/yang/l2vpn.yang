@@ -1,0 +1,127 @@
+module l2vpn {
+    namespace "http://nso.dcn.surf.net/l2vpn";
+    prefix l2vpn;
+
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import junos {
+        prefix junos;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+    import ptp {
+        prefix ptp;
+    }
+    import sap {
+        prefix sap;
+    }
+
+    grouping endpoint {
+        description
+          "define common parameters for a UNI endpoint.";
+
+        uses ptp:interface;
+        uses surfnet:workflow_service_instance;
+
+        leaf-list vlans {
+            description
+            "vlan ids";
+            tailf:info "vlan ids";
+            min-elements 1;
+            
+            type string {
+                pattern "([0-9]+|[0-9]+-[0-9]+)";
+            }
+        }
+
+        leaf outervlan {
+            description
+            "Add q-in-q s-tag to this endpoint";
+            tailf:info "optional vlan id for outer-tag. 0 == none";
+            default "0";
+
+            type uint32 {
+                range "0..4094";
+            }
+        }        
+    }
+
+    augment /ncs:services {
+
+        list l2vpn {
+            description
+              "This is a point-to-point l2vpn service";
+            tailf:info "This is a point-to-point l2vpn service";
+
+            key name;
+
+            uses ncs:service-data;
+            ncs:servicepoint l2vpn-servicepoint;
+
+            leaf name {
+                tailf:info "<uuid:string>";
+                type string;
+            }
+
+            list endpoints {
+                tailf:info "select at least 2 UNI interfaces";
+                key name;
+
+                min-elements 2;
+
+                leaf name {
+                    tailf:info "Unique name to identify a specific ESI";
+                    type string {
+                        length "8..36"; // Should be 8..8 be allow full uuids for now
+                        pattern "[0-9a-fA-F-]*";
+                    }
+                }
+
+                list ports {
+                    uses l2vpn:endpoint;
+                    key "device interface";
+                }
+            }
+
+            uses surfnet:workflow_customer_service;
+
+            leaf vlan_retagging {
+                tailf:info "Enable retagging capability for single tagged L2VPN services";
+                type boolean;
+                default "false";
+            }
+
+            leaf bum_filter {
+                tailf:info "Limit unknown unicast, broadcast and multicast traffic for this L2VPN service";
+                type boolean;
+                default "true";
+            }
+
+            leaf speed {
+                tailf:info "Provide l2vpn speed in Mbps";
+                type uint32 {
+                    range "1..400000";
+                }
+            }
+
+            leaf enforcepolicer {
+                tailf:info "Enforce speed policer on the access ports";
+                type boolean;
+                default "false";
+                when "../speed";
+            }
+
+            leaf interface_mac_ip_limit {
+                tailf:info "Set interface-mac-ip-limit all access ports within instance";
+                type uint32 {
+                    range "1024..131071";
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,106 @@
+submodule l3internet-endpoint {
+    belongs-to l3internet {
+        prefix l3internet;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+    import sap {
+        prefix sap;
+    }
+
+    grouping endpoint-base {
+        uses sap:sap;
+
+        leaf ipv4_address {
+            tailf:info "Local IP Address plus prefix length (x.x.x.x/x)";
+            type tailf:ipv4-address-and-prefix-length;
+            must "current() | ../ipv6_address" {
+                error-message "Either an ipv4 or ipv6 address must be configured";
+            }
+        }
+
+        leaf ipv6_address {
+            tailf:info "Local IPv6 Address plus prefix length (2001:610:fc7::145:145:x:x/xx)";
+            type tailf:ipv6-address-and-prefix-length;
+        }
+
+        leaf ipv4_mtu {
+            tailf:info "Provide the IPv4 MTU";
+            default 1500;
+            type uint32 {
+                range "1500..9000";
+            }
+            // when "../ipv4_address";
+        }
+
+        leaf ipv6_mtu {
+            tailf:info "Provide the IPv6 MTU";
+            default 1500;
+            type uint32 {
+                range "1500..9000";
+            }
+            // when "../ipv6_address";
+        }
+    }
+
+    grouping endpoint {
+        uses surfnet:workflow_service_instance;
+        uses endpoint-base;
+
+        leaf enable_routing {
+            type boolean;
+            default true;
+        }
+
+        leaf ipv4_remote_address {
+            tailf:info "Remote IP Address (x.x.x.x)";
+            type inet:ipv4-address;
+            mandatory true;
+            when "../ipv4_address";
+        }
+
+        leaf ipv6_remote_address {
+            tailf:info "Remote IPv6 Address (2001:610:fc7::145:145:x:x)";
+            type inet:ipv6-address;
+            mandatory true;
+            when "../ipv6_address";
+        }
+
+        list ipv4_prefixes {
+            key "prefix";
+
+            leaf "prefix" {
+                tailf:info "IPv4 Prefix routed to the customer";
+                type inet:ipv4-prefix;
+                must "/ncs:services/l3internet:ip_prefix[prefix=current()]";
+            }
+        }
+
+        list ipv6_prefixes {
+            key "prefix";
+
+            leaf "prefix" {
+                tailf:info "IPv6 Prefix routed to the customer";
+                type inet:ipv6-prefix;
+                must "/ncs:services/l3internet:ip_prefix[prefix=current()]";
+            }
+        }
+
+        leaf speed {
+            type uint32 {
+                range "1..400000";
+            }
+        }
+    }
+}

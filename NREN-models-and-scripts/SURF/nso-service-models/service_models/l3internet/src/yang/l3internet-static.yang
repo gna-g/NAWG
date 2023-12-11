@@ -1,0 +1,63 @@
+submodule l3internet-static {
+    belongs-to l3internet {
+        prefix l3internet;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    include l3internet-endpoint;
+
+    augment /ncs:services {
+
+        list l3internet-static {
+            key name;
+            unique "endpoint/device endpoint/interface endpoint/vlan_id";
+
+            uses ncs:service-data;
+            ncs:servicepoint "l3internet-static";
+
+            leaf name {
+                tailf:info "Provide unique external Static id <UUID>";
+                type string;
+            }
+
+            uses surfnet:workflow_customer_service {
+                refine customer_name {
+                    mandatory true;
+                }
+            }
+
+            leaf surfcert_filter {
+                type enumeration {
+                    enum none;
+                    enum "default";
+                }
+                default none;
+            }
+
+            list pinnen_prefixes {
+                key "prefix";
+
+                leaf "prefix" {
+                    tailf:info "IPv4 Prefix routed to the customer, used for the Pinnen service";
+                    type inet:ipv4-prefix;
+                }
+            }
+
+            container endpoint {
+                uses l3internet:endpoint;
+            }
+        }
+    }
+}

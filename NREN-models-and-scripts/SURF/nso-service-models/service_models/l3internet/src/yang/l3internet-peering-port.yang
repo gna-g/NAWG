@@ -1,0 +1,64 @@
+submodule l3internet-peering-port {
+    belongs-to l3internet {
+        prefix l3internet;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+    import sap {
+        prefix sap;
+    }
+
+    include l3internet-endpoint;
+
+    revision 2016-01-01 {
+        description
+          "Initial revision.";
+    }
+
+    augment /ncs:services {
+        list l3internet-peering-port {
+            description
+              "This service is used to configure external IP connectivity peering-ports";
+
+            uses ncs:service-data;
+            ncs:servicepoint "l3internet-peering-port";
+
+            key name;
+            leaf name {
+                tailf:info "Unique service id (nso-id)";
+                type string;
+            }
+
+            leaf peering_port_name {
+                tailf:info "Name of peering-port";
+                type string;
+            }
+
+            leaf port_type {
+                tailf:info "Type of peering-port";
+                mandatory true;
+                type enumeration {
+                    enum IX;
+                    enum PNI;
+                    enum TRANSIT;
+                    enum RESEARCH;
+                    enum OTHER;
+                }
+            }
+
+            uses surfnet:workflow_service;
+            uses endpoint-base;
+        }
+    }
+}

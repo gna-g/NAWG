@@ -1,0 +1,70 @@
+module surfinternetpinnen {
+  namespace "http://nso.dcn.surf.net/surfinternetpinnen";
+  prefix surfinternetpinnen;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import surfnet-common {
+    prefix surfnet;
+  }
+  import sap {
+    prefix sap;
+  }
+  import l3internet {
+    prefix l3internet;
+  }
+
+  description
+    "Special service model for SURFinternetpinnen connections with Netco";
+
+  revision 2021-07-23 {
+    description
+      "Initial revision.";
+  }
+
+  augment "/ncs:services" {
+    list surfinternetpinnen {
+      description
+        "Special service model for SURFinternetpinnen connections with Netco";
+
+      key "name";
+      leaf name {
+        tailf:info "Unique service id (nso-id)";
+        tailf:cli-allow-range;
+        type string;
+      }
+
+      list endpoints {
+        key "device interface vlan_id";
+        min-elements 1;
+
+        leaf port_name {
+          tailf:info "Name of SURFinternetpinnenport";
+          type string;
+        }
+
+        uses l3internet:endpoint-base;
+
+        leaf remote_address {
+            tailf:info "Remote IP Address (x.x.x.x)";
+            type inet:ipv4-address;
+        }
+
+        leaf auth_key {
+          tailf:info "BGP Authentication key to be used";
+          type string;
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint "surfinternetpinnen-servicepoint";
+    }
+  }
+}

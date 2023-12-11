@@ -1,0 +1,42 @@
+module bmp {
+
+  namespace "http://nso.dcn.surf.net/bmp";
+  
+  prefix bmp;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  description
+    "BMP package";
+
+  revision 2023-01-30 {
+    description
+      "Initial revision.";
+  }
+
+
+  augment /ncs:services {
+
+    list bmp {
+      description "Service model for BGP Monitoring Protocol";
+
+      key device; 
+
+      uses ncs:service-data;
+      ncs:servicepoint bmp-servicepoint;
+
+      leaf device {
+        tailf:info "Core router name";
+        mandatory true;
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+    }
+  }
+}

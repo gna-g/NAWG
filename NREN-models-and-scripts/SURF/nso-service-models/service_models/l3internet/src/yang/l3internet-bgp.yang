@@ -1,0 +1,146 @@
+submodule l3internet-bgp {
+    belongs-to l3internet {
+        prefix l3internet;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    include l3internet-endpoint;
+
+    grouping bgp-settings {
+        leaf bfd_enabled {
+            tailf:info "Enable BFD on the BGP session; default false";
+            type boolean;
+            default "false";
+        }
+
+        leaf bfd_min_int {
+            tailf:info "Minimum BFD Interval; def 900";
+            when "../bfd_enabled = 'true'";
+            type uint32 {
+                range 1..255000;
+            }
+            default 900;
+        }
+
+        leaf bfd_multiplier {
+            tailf:info "BFD Multiplier; def 6";
+            when "../bfd_enabled = 'true'";
+            type uint16 {
+                range 1..255;
+            }
+            default 3;
+        }
+
+        leaf auth_key {
+            tailf:info "BGP Authentication key to be used";
+            type string;
+        }
+
+    }
+
+    augment /ncs:services {
+
+        list l3internet-bgp {
+            key name;
+
+            uses ncs:service-data;
+            ncs:servicepoint "l3internet-bgp";
+
+            leaf name {
+                tailf:info "Provide unique external BGP id <UUID>";
+                type string;
+            }
+
+            uses surfnet:workflow_customer_service {
+                refine customer_name {
+                    mandatory true;
+                }
+            }
+
+            leaf cust_asn {
+                tailf:info "AS Number used by the customer";
+                mandatory true;
+                type inet:as-number;
+            }
+
+            leaf surfcert_filter {
+                type enumeration {
+                    enum none;
+                    enum "default";
+                }
+                default none;
+            }
+
+            list pinnen_prefixes {
+                key "prefix";
+
+                leaf "prefix" {
+                    tailf:info "IPv4 Prefix routed to the customer, used for the Pinnen service";
+                    type inet:ipv4-prefix;
+                }
+            }
+
+            list extra_ptp_ipv4_prefixes {
+                key "prefix";
+
+                leaf "prefix" {
+                    tailf:info "IPv4 Prefix routed to the customer, used for extra ptp addresses used in e.g. Firewall as a Service";
+                    type inet:ipv4-prefix;
+                }
+            }
+
+            list extra_ptp_ipv6_prefixes {
+                key "prefix";
+
+                leaf "prefix" {
+                    tailf:info "IPv6 Prefix routed to the customer, used for extra ptp addresses used in e.g. Firewall as a Service";
+                    type inet:ipv6-prefix;
+                }
+            }
+
+            list endpoints {
+
+                key "device interface vlan_id";
+                min-elements 1;
+
+                uses l3internet:endpoint;
+
+                leaf bgp_session_priority {
+                    tailf:info "Determines the BGP preference";
+
+                    type enumeration {
+                        enum primary;
+                        enum secondary;
+                        enum tertiary;
+                        enum quaternary;
+                    }
+                    default primary;
+                }
+
+                leaf export_policy {
+                    tailf:info "Determines the BGP Group the connection is placed in";
+
+                    type enumeration {
+                        enum "default";
+                        enum full;
+                    }
+                    default "default";
+                }
+
+                uses bgp-settings;
+            }
+        }
+    }
+}

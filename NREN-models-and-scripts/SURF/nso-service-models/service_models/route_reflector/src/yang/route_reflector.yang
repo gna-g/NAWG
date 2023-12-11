@@ -1,0 +1,45 @@
+module route_reflector {
+    namespace "http://nl/surfnet/route_reflector";
+    prefix route_reflector;
+
+    import tailf-common {
+        prefix tailf;
+    }
+
+    import tailf-ncs {
+        prefix ncs;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+
+    import node_create {
+        prefix nc;
+    }
+
+    augment /ncs:services {
+        list route_reflector {
+            key device;
+
+            uses ncs:service-data;
+            ncs:servicepoint "route_reflector";
+            leaf device {
+                must "(count(/ncs:services/nc:node_create[nc:device=current()]) > 0)" {
+                    error-message
+                      "You must choose a device that already has node_create";
+                }
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf cluster-id {
+                tailf:info "BGP cluster-id for this route reflector";
+                /* For now make this optional to ease migration
+                 mandatory true; */
+                type inet:ipv4-address;
+            }
+        }
+    }
+}

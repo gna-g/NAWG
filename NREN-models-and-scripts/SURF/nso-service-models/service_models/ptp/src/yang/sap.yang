@@ -1,0 +1,69 @@
+module sap {
+    namespace "http://nso.dcn.surf.net/sap";
+    prefix sap;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import junos {
+        prefix junos;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+    import ptp {
+        prefix ptp;
+    }
+
+    grouping sap {
+        uses ptp:interface;
+
+        leaf vlan_id {
+            description
+              "The vlan_id.
+                This is 0..4094 for tagged interfaces (the unit)";
+            tailf:info "The vlan_id
+                    You can only choose Interfaces that have a sap service applied";
+            mandatory true;
+            type uint32 {
+                range "0..4094";
+            }
+        }
+    }
+
+    augment /ncs:services {
+
+        list sap {
+            description
+              "This is the external connectivity PTP service";
+            key "device interface unit_id";
+
+            uses ptp:interface;
+
+            leaf unit_id {
+                tailf:info "Provide the unit id (0 to 16385)";
+                mandatory true;
+                type uint32 {
+                    range "0..16385";
+                }
+            }
+
+            leaf service {
+                mandatory false;
+                type instance-identifier{
+                    // Needed to prevent an issue with removing because the service is deleted before this config
+                    require-instance false;
+                }
+            }
+        }
+    }
+}

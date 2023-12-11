@@ -1,0 +1,88 @@
+submodule l3internet-peer-group {
+    belongs-to l3internet {
+        prefix l3internet;
+    }
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+    import ietf-yang-types {
+        prefix yang;
+    }
+
+    include l3internet-endpoint;
+
+    revision 2016-01-01 {
+        description
+          "Initial revision.";
+    }
+
+    augment /ncs:services {
+        list l3internet-peer-group {
+            description
+              "This service is used for the configuration of BGP peer-groups";
+            key name;
+            unique "peer_group_name";
+
+
+            leaf name {
+                tailf:info "Unique service id (UUID) (nso-id)";
+                type string;
+            }
+
+            uses surfnet:workflow_service;
+
+            leaf peer_group_name {
+                tailf:info "Peer-group name (as used in BGP configuration)";
+                mandatory true;
+                type string;
+            }
+
+            leaf peer_type {
+                tailf:info "Type of external network (research / commercial)";
+                mandatory true;
+                type enumeration {
+                    enum research-network;
+                    enum commercial-network;
+                }
+            }
+
+            leaf interconnection_type {
+                tailf:info "Type of interconnection (ix / pni / transit)";
+                mandatory true;
+                type enumeration {
+                    enum ix;
+                    enum pni;
+                    enum transit;
+                }
+            }
+
+            leaf metric_out {
+                tailf:info "BGP metric-out for peer-group";
+                type uint32;
+            }
+
+            leaf peer_community {
+                tailf:info "Second part of SURFnet import-policy community for peer(-group) (1103:x) (for IX & Transit)";
+                type inet:as-number;
+            }
+
+            list route_servers {
+                tailf:info "List of IX route-servers";
+                key address;
+
+                leaf address {
+                    type inet:ip-address;
+                }
+            }
+        }
+    }
+}

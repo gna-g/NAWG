@@ -1,0 +1,48 @@
+module surfnet-common {
+    namespace "http://nl/surfnet/common";
+    prefix surfnet;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+
+    grouping workflow_service {
+        leaf subscription_id {
+            description
+              "Workflows subscription id";
+            tailf:info "Workflows subscription id";
+            type yang:uuid;
+        }
+    }
+
+    grouping workflow_customer_service {
+        uses workflow_service;
+
+        leaf customer_name {
+            description
+              "Name of customer or peering partner";
+            tailf:info "Name of customer or peering partner";
+            type string {
+                length "1..1000";
+            }
+        }
+    }
+
+    grouping workflow_service_instance {
+        leaf instance_id {
+            description
+              "Uuid of instance";
+            tailf:info "Uuid of instance";
+            type yang:uuid;
+        }
+    }
+}

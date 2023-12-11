@@ -1,0 +1,51 @@
+module l3internet {
+    namespace "http://nso.dcn.surf.net/l3internet";
+    prefix l3internet;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+
+    include l3internet-bgp;
+    include l3internet-static;
+    include l3internet-endpoint;
+    include l3internet-generate-default-route;
+    include l3internet-ip-prefix;
+    include l3internet-peering-port;
+    include l3internet-peer;
+    include l3internet-peer-group;
+
+    augment /ncs:customers {
+        list customer-prefixes-specific {
+            key "customer_name";
+
+            leaf customer_name {
+                type leafref {
+                    path "/ncs:services/l3internet-bgp/customer_name";
+                }
+            }
+
+            list ipv4-prefixes {
+                key "prefix";
+
+                leaf "prefix" {
+                    type inet:ipv4-prefix;
+                }
+            }
+
+            list ipv6-prefixes {
+                key "prefix";
+
+                leaf "prefix" {
+                    type inet:ipv6-prefix;
+                }
+            }
+        }
+    }
+}

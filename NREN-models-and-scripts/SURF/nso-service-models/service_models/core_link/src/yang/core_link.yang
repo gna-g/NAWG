@@ -1,0 +1,126 @@
+module core_link {
+
+    namespace "http://nl/surfnet/core_link";
+    prefix core_link;
+
+    import ietf-yang-types {
+        prefix yang;
+    }
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    augment /ncs:services {
+        list core_link {
+            tailf:info "Provide unique link ID this is  UUID";
+            key name;
+            unique "device1 aggregate_id1";
+            unique "device2 aggregate_id2";
+
+            uses ncs:service-data;
+            ncs:servicepoint core_link-servicepoint;
+
+            leaf name {
+                tailf:info "Provide <uuid>";
+                type string;
+            }
+
+            uses surfnet:workflow_service;
+
+            leaf device1 {
+                tailf:info "Select device1";
+                mandatory true;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf aggregate_id1 {
+                tailf:info "port_agg id for example 99";
+                type uint32{
+                    range "0..480"; // 480 is the VMX limit, actual mx can handle up to 1000
+                }
+                mandatory true;
+            }
+
+            leaf address1 {
+                tailf:info "Local IP Address 145.x.x.x";
+                mandatory true;
+                type inet:ipv4-address;
+            }
+            leaf address1v6 {
+                tailf:info "Local IPv6 Address 2001:610:fc7::145:145:x:x";
+                type inet:ipv6-address;
+            }
+            leaf device2 {
+                tailf:info "Select device2";
+                mandatory true;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf aggregate_id2 {
+                tailf:info "port_agg id for example 99";
+                type uint32{
+                    range "0..480"; // 480 is the VMX limit, actual mx can handle up to 1000
+                }
+                mandatory true;
+            }
+
+            leaf address2 {
+                tailf:info "Remote IP Address 145.x.x.x+1";
+                mandatory true;
+                type inet:ipv4-address;
+            }
+            leaf address2v6 {
+                tailf:info "Remote IPv6 Address 2001:610:fc7::145:145:x:x+1";
+                type inet:ipv6-address;
+            }
+
+            list interfaces {
+                tailf:info "Interface pairs (eg xe-1/0/2)";
+                min-elements 1;
+                key "interface1 interface2";
+
+                leaf interface1 {
+                    tailf:info "Interface on device1 (eg xe-1/0/2)";
+                    // Because this model creates ptps we prevent reusing interfaces
+                    type string;
+                }
+
+                leaf interface2 {
+                    tailf:info "Interface on device1 (eg xe-1/0/2)";
+                    // Because this model creates ptps we prevent reusing interfaces
+                    type string;
+                }
+            }
+
+            leaf isis-metric {
+                tailf:info "ISIS metric for the corelink";
+                default "20";
+                type string;
+            }
+
+            leaf link-speed {
+                type uint32 {
+                range "1..400000";
+                }
+            }
+            leaf maintenance-mode {
+                tailf:info "Sets maintenance-mode (maximum isis metric) for this core_link";
+                type boolean;
+                default false;
+            }
+        }
+    }
+}

@@ -1,0 +1,111 @@
+module corero {
+    namespace "http://nso.dcn.surf.net/corero";
+
+    prefix corero;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import ptp {
+        prefix ptp;
+    }
+
+    description
+      "Corero package";
+
+    revision 2016-01-01 {
+        description
+          "Initial revision.";
+    }
+    augment /ncs:services {
+        list corero {
+            description
+              "Connect corero service to router";
+
+            key device;
+
+            uses ncs:service-data;
+            ncs:servicepoint corero-servicepoint;
+
+            leaf device {
+                tailf:info "Core router name";
+                mandatory true;
+                type leafref {
+                path "/ncs:devices/ncs:device/ncs:name";
+                }
+            } 
+
+            container mirror_traffic_to_corero_ntd {
+                leaf enabled {
+                    tailf:info "Mirror of external traffic to NTD";
+                    type boolean;
+                    default "false";
+                }
+                container tunnel_services_bandwidth_pic {
+                    when "../enabled = 'true'";
+                    tailf:info "PIC to be used for tunnel bandwidth (GRE tunnel)";
+                    leaf fpc {
+                        tailf:info "FPC slot number";
+                        mandatory true;
+                        type uint16;
+                    }
+                    leaf pic {
+                        tailf:info "PIC slot number";
+                        mandatory true;
+                        type uint16;
+                    }
+                }
+            }
+
+            container bgp_connection_to_corero_cms {
+                leaf enabled {
+                    tailf:info "Enable BGP session to Corero CMS for flowspec/RTBH";
+                    type boolean;
+                    default "false";
+                }
+                leaf loopback_address_v4 {
+                    when "../enabled = 'true'";
+                    tailf:info "IP address for loopback (lo0.2) address in SURFinternet VRF (145.145.128.x)";
+                    mandatory true;
+                    type inet:ipv4-address;
+                }
+                leaf loopback_address_v6 {
+                    when "../enabled = 'true'";
+                    tailf:info "IP address for loopback (lo0.2) address in SURFinternet VRF (2001:610:e00:1:145:145:128:x)";
+                    mandatory true;
+                    type inet:ipv6-address;
+                }
+            }
+
+            container direct_corero_ntd_connection {
+                leaf enabled {
+                    tailf:info "Configure interface that connects to Corero NTD";
+                    type boolean;
+                    default "false";
+                }
+                leaf interface {
+                    when "../enabled = 'true'";
+                    tailf:info "Select interface that directly connects Corero NTD VLAN";
+                    mandatory true;
+                    type leafref {
+                    path "/ncs:services/ptp:ptp/ptp:interface";
+                    }
+                }
+                leaf vlan_id {
+                    when "../enabled = 'true'";
+                    tailf:info "VLAN for Corero NTD)";
+                    mandatory true;
+                    type uint32 {
+                        range "1..4094";
+                    }
+                }         
+            }
+        }
+    }
+}

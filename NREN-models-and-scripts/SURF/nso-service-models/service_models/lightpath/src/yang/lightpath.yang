@@ -1,0 +1,137 @@
+module lightpath {
+    namespace "http://nso.dcn.surf.net/lightpath";
+    prefix lightpath;
+
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import junos {
+        prefix junos;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    import ptp {
+        prefix ptp;
+    }
+    import sap {
+        prefix sap;
+    }
+
+    grouping endpoint {
+        description
+          "define common parameters for a UNI endpoint.";
+
+        uses ptp:interface;
+        uses surfnet:workflow_service_instance;
+
+        container tagged_info {
+            description
+              "define specific tagged port values. Only defined if ptptype=tagged and selected port has right encapsulation";
+            tailf:info "provide specific tagged port information";
+            leaf-list outervlan {
+                description
+                  "outer vlan id";
+                tailf:info "UNI outer vlan id on tagged port";
+                must "not(count(.) > 1 or contains(string(.), '-'))
+                      or (count(../../../endpoints_a[1]/tagged_info/outervlan) = count(../../../endpoints_z[1]/tagged_info/outervlan)
+                          and ../../../endpoints_a[1]/tagged_info/outervlan = ../../../endpoints_z[1]/tagged_info/outervlan)
+                      or (count(../../../endpoints_a[1]/tagged_info/innervlan) = count(../../../endpoints_z[1]/tagged_info/outervlan)
+                          and ../../../endpoints_a[1]/tagged_info/innervlan = ../../../endpoints_z[1]/tagged_info/outervlan)
+                      or (count(../../../endpoints_a[1]/tagged_info/outervlan) = count(../../../endpoints_z[1]/tagged_info/innervlan)
+                          and ../../../endpoints_a[1]/tagged_info/outervlan = ../../../endpoints_z[1]/tagged_info/innervlan)" {
+                    error-message "A vlan range is given but that same range is not found on the other side, they must be the same";
+                }
+                type string {
+                    pattern "([0-9]+|[0-9]+-[0-9]+)";
+                }
+            }
+
+            leaf-list innervlan {
+                description
+                "inner vlan id, only allowed when outervlan has been configured";
+                tailf:info "UNI inner vlan id on tagged port";
+                must "not(count(../outervlan) > 1 or contains(string(../outervlan), '-'))"{
+                    error-message "An inner vlan is not possible when the outervlan is a range";
+                }
+                must "not(count(.) > 1 or contains(string(.), '-'))
+                      or (count(../../../endpoints_a[1]/tagged_info/innervlan) = count(../../../endpoints_z[1]/tagged_info/innervlan)
+                          and ../../../endpoints_a[1]/tagged_info/innervlan = ../../../endpoints_z[1]/tagged_info/innervlan)
+                      or (count(../../../endpoints_a[1]/tagged_info/innervlan) = count(../../../endpoints_z[1]/tagged_info/outervlan)
+                          and ../../../endpoints_a[1]/tagged_info/innervlan = ../../../endpoints_z[1]/tagged_info/outervlan)
+                      or (count(../../../endpoints_a[1]/tagged_info/outervlan) = count(../../../endpoints_z[1]/tagged_info/innervlan)
+                          and ../../../endpoints_a[1]/tagged_info/outervlan = ../../../endpoints_z[1]/tagged_info/innervlan)"{
+                    error-message "A vlan range is given but that same range is not found on the other side, they must be the same";
+                }
+                type string {
+                    pattern "([0-9]+|[0-9]+-[0-9]+)";
+                }
+            }
+        }
+    }
+
+    augment /ncs:services {
+
+        list lightpath {
+            description
+              "This is a point-to-point lightpath service";
+            tailf:info "This is a point-to-point lightpath service";
+
+            key name;
+
+            uses ncs:service-data;
+            ncs:servicepoint lightpath-servicepoint;
+
+            leaf name {
+                tailf:info "<uuid:string>";
+                type string;
+            }
+
+            list endpoints_a {
+                tailf:info "select at least 1 UNI interfaces for a side";
+                uses lightpath:endpoint;
+                key "device interface";
+
+                min-elements 1;
+                max-elements 1;
+            }
+
+            list endpoints_z {
+                tailf:info "select at least 1 UNI interfaces for b side";
+                uses lightpath:endpoint;
+                key "device interface";
+
+                min-elements 1;
+                max-elements 1;
+            }
+
+            uses surfnet:workflow_customer_service;
+
+            leaf remoteportshutdown {
+                description
+                  "only enable remote port shutdown when both ends of the link are set to untagged, so untagged=2";
+                tailf:info "enable remote port shutdown for untagged?";
+                type boolean;
+                default "true";
+            }
+
+            leaf speed {
+                tailf:info "Provide p2p link speed in Mbps";
+                type uint32 {
+                    range "1..4000000";
+                }
+            }
+
+            leaf enforcepolicer {
+                tailf:info "Enforce speed policer on the access port";
+                type boolean;
+                default "false";
+                when "../speed";
+            }
+        }
+    }
+}

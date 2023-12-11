@@ -1,0 +1,55 @@
+submodule l3internet-ip-prefix {
+    belongs-to l3internet {
+        prefix l3internet;
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import surfnet-common {
+        prefix surfnet;
+    }
+
+    revision 2016-01-01 {
+        description
+          "Initial revision.";
+    }
+    augment /ncs:services {
+        list ip_prefix {
+            description
+              "This service is used for external IP connectivity peerings";
+
+            key prefix;
+            leaf prefix {
+                tailf:info "Unique prefix";
+                type inet:ip-prefix;
+            }
+
+            uses surfnet:workflow_service;
+
+            leaf to_internet {
+                tailf:info "To internet (announce this prefix to other even if it is a subprefix)";
+                type boolean;
+                default false;
+            }
+
+            leaf customer_aggregate {
+                tailf:info "Is a customer aggregate (Only show subprefixes if this prefix is not announced)";
+                type boolean;
+                default false;
+            }
+
+            leaf lir {
+                tailf:info "Is LIR prefix and not a technical prefix";
+                type boolean;
+                default true;
+            }
+        }
+    }
+}

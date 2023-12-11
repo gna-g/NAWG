@@ -1,0 +1,60 @@
+module bgp-ls {
+  namespace "http://nl/surfnet/bgp-ls";
+  prefix bgp-ls;
+
+  import tailf-ncs {
+    prefix ncs;
+  }
+  
+  import ietf-inet-types {
+      prefix inet;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  import node_create {
+    prefix nc;
+  }
+
+  augment /ncs:services {
+    list bgp-ls {
+
+      description
+        "This is a BGP Link State service";
+      
+      key name;
+
+      leaf name {
+        tailf:info "<uuid:string>";
+        type string;
+      }
+
+      leaf device {
+        must "(count(/ncs:services/nc:node_create[nc:device=current()]) > 0)" {
+          error-message "You must choose a device that already has node_create";
+        }
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint "bgp-ls";
+
+      leaf neighbor_address {
+        mandatory true;
+        tailf:info "BGP-LS neighbor address";
+        type inet:ipv4-address;
+      }
+
+      leaf neighbor_description{
+        mandatory false;
+        tailf:info "BGP-LS neighbor description";
+        type string
+        ;
+      }
+    }
+  }
+}

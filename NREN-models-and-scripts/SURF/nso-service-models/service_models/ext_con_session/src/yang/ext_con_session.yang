@@ -1,0 +1,92 @@
+module ext_con_session {
+
+    namespace "http://nl/surf/ext_con_session";
+    prefix ext_con_session;
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+
+    revision 2016-01-01 {
+        description
+          "Initial revision.";
+    }
+    augment /ncs:services {
+        list ext_con_session {
+            description
+              "This service is used for external IP connectivity peerings";
+
+            uses ncs:service-data;
+            ncs:servicepoint ext_con_session-servicepoint;
+
+            key name;
+            leaf name {
+                tailf:info "Unique service id";
+                type string;
+            }
+
+            leaf device {
+                tailf:info "Select device";
+                mandatory true;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf groupname {
+                tailf:info "Provide group name";
+                type string;
+            }
+
+            choice ipv4-or-ipv6 {
+                mandatory true;
+                case ipv4 {
+                    leaf remoteip {
+                        mandatory true;
+                        tailf:info "Remote IPv4 Address";
+                        type inet:ipv4-address;
+                    }
+
+                    leaf maxprefix {
+                        mandatory true;
+                        tailf:info "Max prefix for IPv4";
+                        type uint32;
+                    }
+                }
+                case ipv6 {
+                    leaf remoteipv6 {
+                        mandatory true;
+                        tailf:info "Remote IPv6 Address 2001:610:fc7::145:145:x:x+1";
+                        type inet:ipv6-address;
+                    }
+                    leaf maxprefixv6 {
+                        mandatory true;
+                        tailf:info "Max prefix for IPv6";
+                        type uint32;
+                    }
+                }
+            }
+
+            leaf peerdescription {
+                tailf:info "Provide peer description";
+                type string;
+            }
+
+            leaf peeras {
+                tailf:info "Provide peer AS number";
+                type inet:as-number;
+            }
+
+            leaf authkey {
+                tailf:info "Provide authentication key";
+                type string;
+            }
+        }
+    }
+}
