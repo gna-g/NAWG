@@ -1,4 +1,4 @@
-<mxfile host="Electron" modified="2024-03-28T15:27:08.455Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.1.0 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="wejOZPOaraErFTbZu27V" version="24.1.0" type="device">
+<mxfile host="Electron" modified="2024-03-28T15:53:02.362Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.1.0 Chrome/120.0.6099.109 Electron/28.1.0 Safari/537.36" etag="f2-GIfU5suCg-6En2OEa" version="24.1.0" type="device">
   <diagram id="LwASob8A_YiV_N0ngFEz" name="overview">
     <mxGraphModel dx="2048" dy="2322" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -50,7 +50,7 @@
             <mxGeometry x="80" y="300" width="120" height="60" as="geometry" />
           </mxCell>
         </UserObject>
-        <mxCell id="I2plKFKOYPkhNgAEXsVb-1" value="ESDB" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
+        <mxCell id="I2plKFKOYPkhNgAEXsVb-1" value="ESDB (Internal Only)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
           <mxGeometry x="640" y="300" width="120" height="60" as="geometry" />
         </mxCell>
         <UserObject label="VC4 IMS" link="https://www.vc4.com/vc4-ims/" linkTarget="_blank" id="wdJjTj7mFPBbxCgWcmD--1">
@@ -383,7 +383,7 @@
         <mxCell id="YD9PVUfFSobPmvHe3bov-16" value="ESnet" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=8;" parent="1" vertex="1">
           <mxGeometry x="995" y="446" width="25" height="25" as="geometry" />
         </mxCell>
-        <UserObject label="Spectrum" linkTarget="_blank" id="YD9PVUfFSobPmvHe3bov-18">
+        <UserObject label="Spectrum" linkTarget="_blank" link="https://www.broadcom.com/info/aiops/dx-spectrum" id="YD9PVUfFSobPmvHe3bov-18">
           <mxCell style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;" parent="1" vertex="1">
             <mxGeometry x="960" y="480" width="120" height="60" as="geometry" />
           </mxCell>
