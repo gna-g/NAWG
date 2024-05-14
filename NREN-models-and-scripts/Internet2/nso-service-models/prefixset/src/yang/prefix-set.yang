@@ -1,0 +1,80 @@
+module prefix-set {
+
+  namespace "https://internet2.edu/yang/prefix-set";
+  prefix prefix-set;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  augment /i2c:infrastructure {
+    uses prefix-set-top;
+  }
+
+  grouping prefix-set-top {
+    list prefix-set {
+      tailf:info "Create a prefix-set for use in other services";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Name of prefix-set, must be globally unique";
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint prefixset-servicepoint;
+
+      leaf comment {
+        tailf:info "Extra information about a prefix-set";
+        type string;
+      }
+
+      leaf-list devices {
+        tailf:hidden "full";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+      leaf-list devices-orlonger {
+        tailf:hidden "full";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+      leaf-list devices-host {
+        tailf:hidden "full";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      list prefix {
+        tailf:info "Add a prefix to the list";
+        key prefix;
+        leaf prefix {
+          type inet:ip-prefix;
+        }
+
+        leaf family-len {
+          tailf:info "A variable set by python and used in the template";
+          type uint8;
+          config false;
+          tailf:cdb-oper {
+           tailf:persistent true;
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,69 @@
+submodule isis {
+
+    belongs-to nodeconfig {
+        prefix nodeconfig;
+    }
+
+    import tailf-common {
+      prefix tailf;
+    }
+
+    import tailf-ncs {
+      prefix ncs;
+    }
+
+    grouping nodeconfig-isis-top {
+        list nodeconfig-isis {
+
+            tailf:info "INTERNAL - nodeconfig ISIS";
+            tailf:cli-allow-wildcard;
+
+            key name;
+            leaf name {
+                tailf:info "Device reference";
+                tailf:cli-allow-range;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf node-identifier {
+                description "range is based on the allocation for v4 loopbacks, 163.253.0.0/25";
+                tailf:info "This ID is used to derive IPv4/6 loopbacks, ISO address, v4/v6 SR node SID";
+                type uint16 {
+                    range "0..127";
+                }
+                mandatory true;
+            }
+
+            leaf iso-address {
+                tailf:info "Automatically derived from the node-identifier";
+                type string;
+            }
+
+            leaf microloop-avoidance {
+                tailf:info "Enable microloop avoidance; defaults to true";
+                type boolean;
+                default true;
+            }
+
+            leaf srlg-weighted-global {
+                tailf:info "Enable SRLG weighted global [defaults true]";
+                type boolean;
+                default true;
+            }
+
+            leaf enable-overload {
+                tailf:info "Enable overload bit";
+                type boolean;
+                default false;
+            }
+
+            uses ncs:service-data;
+            ncs:servicepoint nodeconfig-isis-servicepoint;
+
+        }
+    }
+
+
+}

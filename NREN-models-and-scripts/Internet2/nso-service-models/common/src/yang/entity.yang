@@ -1,0 +1,114 @@
+submodule entity {
+  belongs-to common {
+    prefix "i2c";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  grouping entity-top {
+    list entity {
+      key name;
+      leaf name {
+        type string {
+          length "2..20";
+          pattern "[A-Z0-9]+";
+          tailf:info "Entity identifier, consisting of A-Z, 0-9. Should match the 'Entity code' in the NOC-DB";
+        }
+      }
+      uses bgp-sessions-action;
+      uses prefix-lists-action;
+    }
+
+  }
+
+  grouping bgp-sessions-action {
+    tailf:action bgp-sessions {
+      tailf:info "Show BGP sessions with associated prefix lists";
+      tailf:actionpoint bgp-sessions-action;
+      output {
+        list service {
+          key "id";
+          leaf id {
+            type string;
+          }
+          leaf service-type {
+            type string;
+          }
+          leaf service-offering {
+            type string;
+          }
+          leaf name {
+            type string;
+          }
+          leaf entity {
+            type string;
+          }
+          leaf admin-state {
+            type string;
+          }
+          leaf pop {
+            type string;
+          }
+          leaf device {
+            type string;
+          }
+          leaf interface {
+            type string;
+          }
+          leaf service-id {
+            type string;
+          }
+          leaf vlan-id {
+            type string;
+          }
+          leaf remote-as {
+            type string;
+          }
+          list neighbor {
+            key address;
+            leaf address {
+              type string;
+            }
+          }
+          leaf neighbor-ipv6 {
+            type string;
+          }
+          list prefix-list {
+            key name;
+            leaf name {
+              type string;
+            }
+            leaf type {
+              type string;
+            }
+          }
+        }
+      }
+    }
+  }
+  grouping prefix-lists-action {
+    tailf:action prefix-lists {
+      tailf:info "Show prefix lists and associated prefixes";
+      tailf:actionpoint prefix-lists-action;
+      output {
+        list prefix-list {
+          key "id";
+          leaf id {
+            type string;
+          }
+          leaf name {
+            type string;
+          }
+          leaf entity {
+            type string;
+          }
+          leaf-list prefixes {
+            type string;
+          }
+        }
+      }
+    }
+  }
+}

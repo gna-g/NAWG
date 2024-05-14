@@ -1,0 +1,84 @@
+module managed-prefix-set {
+
+  namespace "https://internet2.edu/yang/managed-prefix-set";
+  prefix managed-prefix-set;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  // import smn-common {
+  //   prefix smn-common;
+  // }
+
+  augment /i2c:infrastructure {
+    uses managed-prefix-set-top;
+  }
+
+  // augment /i2c:internal-services {
+  //   uses managed-prefix-set-top;
+  // }
+
+  // augment /smn-common:smn/smn-common:services {
+  //   uses managed-prefix-set-top;
+  // }
+
+  // augment /smn-common:smn/smn-common:internal-services {
+  //   uses managed-prefix-set-top;
+  // }
+
+  // Top-level service
+  grouping managed-prefix-set-top {
+    list managed-prefix-set {
+      tailf:info "Service for managing prefix-sets controlled by NetBox";
+      tailf:cli-allow-wildcard;
+      key entity;
+      uses i2c:entity-leaf;
+
+      uses ncs:service-data;
+      ncs:servicepoint managed-prefix-set-servicepoint;
+
+      list prefix {
+        tailf:info "Prefix and re-type";
+        key prefix;
+        leaf prefix {
+          type inet:ip-prefix;
+        }
+
+        leaf re-type {
+          tailf:info "Prefix category";
+          type enumeration {
+            enum PARTICIPANT;
+            enum SPONSORED;
+            enum CORPORATE;
+            enum NONE {
+              tailf:info "Prefix will not be included in RE prefix-sets";
+            }
+          }
+        }
+      }
+
+      // Template variables
+      // Useful for non-scalar variables or more complex data-structures for
+      // template logic
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+      }
+
+    }
+  }
+
+}

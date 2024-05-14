@@ -1,0 +1,144 @@
+module routing-config {
+
+  namespace "https://internet2.edu/yang/routing-config";
+  prefix routing-config;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  augment /i2c:internal-services {
+    uses routing-config-top;
+  }
+
+  grouping routing-config-top {
+    list routing-config {
+      tailf:info "Instantiate routing-config onto a device";
+      tailf:cli-allow-wildcard;
+
+      key "device config-name";
+      leaf device {
+        tailf:info "Device to push policy to";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+        tailf:cli-allow-range;
+      }
+      leaf config-name {
+        tailf:info "Name of routing-config policy to push";
+        type string {
+          pattern "[-_a-zA-Z0-9]*";
+        }
+        tailf:cli-allow-range;
+        tailf:cli-completion-actionpoint routing-config-completion-actionpoint;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint routing-config-servicepoint;
+
+      uses vars;
+    }
+  }
+
+  grouping vars {
+    description "Attach this to a service when making use of routing-config
+    to define a VRF. This should be used via the python routing_config and
+    not directly modified.";
+
+    container routing-config-vars {
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+
+      container ipv4-unicast {
+        tailf:info "IPv6 Unicast VRF parameters";
+        uses vars-afi-safi;
+      }
+      container ipv6-unicast {
+        tailf:info "IPv6 Unicast VRF parameters";
+        uses vars-afi-safi;
+      }
+      list bgp-network {
+        tailf:info "BGP Network statements to originate a route";
+        key prefix;
+        leaf prefix {
+          type string;
+        }
+        leaf policy {
+          type string;
+        }
+        leaf afi {
+          type string;
+        }
+      }
+      list bgp-redistribute {
+        tailf:info "BGP Redistribute statements";
+        key protocol;
+        leaf protocol {
+          type string; // connected or static
+        }
+        leaf policy {
+          type string;
+        }
+      }
+
+      list community-set {
+        key name;
+        uses resource-set;
+      }
+      list ext-community-rt-set {
+        key name;
+        uses resource-set;
+      }
+      list large-community-set {
+        key name;
+        uses resource-set;
+      }
+      list prefix-set {
+        key name;
+        uses resource-set;
+      }
+    }
+  }
+
+  grouping resource-set {
+    description "For internal use";
+    leaf name {
+      type string;
+    }
+    leaf-list values {
+      type string;
+    }
+  }
+
+  grouping vars-afi-safi {
+    leaf enable {
+      tailf:info "Whether this afi/safi is enabled";
+      type boolean;
+      default false;
+    }
+    leaf-list import-rt {
+      tailf:info "Import by route-target";
+      type string;
+    }
+    leaf-list export-rt {
+      tailf:info "Export by route-target";
+      type string;
+    }
+    leaf-list import-policy {
+      tailf:info "Import by route-policy";
+      type string;
+    }
+    leaf-list export-policy {
+      tailf:info "Export by route-policy";
+      type string;
+    }
+  }
+}

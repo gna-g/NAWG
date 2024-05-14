@@ -1,0 +1,56 @@
+submodule pdp-interface {
+
+  belongs-to pdp {
+    prefix "pdp";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  grouping pdp-interface {
+    description "This is a table of device,interface -> PDP.
+
+    It is used to ensure that an interface is not used by more than
+    one PDP.";
+
+    container pdp {
+      tailf:hidden full;
+
+      list device {
+        key name;
+        leaf name {
+          tailf:info "Device name";
+          type string;
+        }
+
+        list interface {
+          key name;
+
+          leaf name {
+            tailf:info "Full interface name";
+            type string;
+          }
+
+          list pdp {
+            tailf:info "List of PDPs using this interface";
+            key name;
+            leaf name {
+              tailf:info "PDP Name";
+              type string;
+            }
+            leaf bundle-member {
+              tailf:info "Whether interface is a member of a bundle";
+              type boolean;
+            }
+          }
+
+          must "count(pdp) = 1" {
+            error-message "Only one PDP may use a given interface at a time";
+          }
+
+        }
+      }
+    }
+  }
+}

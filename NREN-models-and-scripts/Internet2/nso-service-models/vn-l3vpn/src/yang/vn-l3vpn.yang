@@ -1,0 +1,200 @@
+module vn-l3vpn {
+
+  namespace "https://internet2.edu/yang/vn-l3vpn";
+  prefix vn-l3vpn;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  import common {
+    prefix i2c;
+  }
+  import peer-config {
+    prefix peer-config;
+  }
+  import vn-migrate {
+    prefix vn-migrate;
+  }
+
+  augment /ncs:services/i2c:virtual-network {
+    uses vn-l3vpn-top;
+  }
+  augment /ncs:services/i2c:virtual-network/l3vpn/connection {
+    uses peer-config:bgp-authentication;
+  }
+  augment /ncs:services/i2c:virtual-network/l3vpn/connection/neighbor {
+    uses peer-config:bgp-authentication;
+  }
+
+  // Top-level service
+  grouping vn-l3vpn-top {
+    list l3vpn {
+      tailf:info "Private L3VPN - Usable directly or via VirtualNetworks";
+      tailf:cli-allow-wildcard;
+      key name;
+      leaf name {
+        tailf:info "Service Name, eg 'ENTITY-BESPOKE-VPN'";
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint vn-l3vpn-servicepoint;
+
+      // Admin-state
+      uses peer-config:admin-state;
+
+      // OESS-Legacy container
+      uses oess-legacy;
+      uses vn-migrate:migration-action;
+
+      // Connections (interface + neighbor + peer) inside
+      list connection {
+        tailf:info "List of connections (interface + neighbor) part of this VPN";
+        tailf:cli-allow-wildcard;
+
+        key "name";
+        leaf name {
+          tailf:info "Name for connection";
+          type i2c:safe-string;
+          tailf:cli-allow-range;
+        }
+
+        // pdp
+        // encapsulation/
+        //   - native
+        //   - dot1q/vlan-id
+        //   - qinq/subint-id, qinq/outer-vlan, qinq-inner-vlan
+        // override-mtu
+        // address-ipv4{}
+        // address-ipv6{}
+        uses peer-config:intf-config {
+          refine "override-mtu" {
+            tailf:info "Override default MTU (1500)";
+          }
+        }
+
+        // Admin-state
+        uses peer-config:admin-state {
+          refine "admin-state" {
+            mandatory false;
+            default "in-service";
+          }
+        }
+
+        // egress-rate-limit
+        uses peer-config:intf-config-egress-rate;
+
+        leaf local-as {
+          tailf:info "Internet2-side ASN for BGP session";
+          type uint32;
+          mandatory true;
+        }
+
+        // remote-as
+        // password-md5 (DISABLED)
+        // bfd/ enable, min-interval, multiplier
+        // neighbor{}
+        //   address
+        //   maximum-prefix
+        //   gtsm-enable
+        //   password-md5 (DISABLED)
+        //   bfd/ enable, min-interval, multiplier
+        //   no-monitor (DISABLED)
+        //   pending (DISABLED)
+        //   unresponsive (DISABLED)
+        // NB: Authentication added via augment
+        uses peer-config:neighbor-config {
+          refine "neighbor/maximum-prefix" {
+            tailf:info "Maximum accepted prefixes [default 1000]";
+          }
+          refine "password-md5" {
+            tailf:hidden DISABLE;
+          }
+          refine "neighbor/password-md5" {
+            tailf:hidden DISABLE;
+          }
+          refine "neighbor/no-monitor" {
+            tailf:hidden DISABLE;
+          }
+          refine "neighbor/pending" {
+            tailf:hidden DISABLE;
+          }
+          refine "neighbor/unresponsive" {
+            tailf:hidden DISABLE;
+          }
+          refine "bfd/min-interval" {
+            // There's no network engineering/architecture reason for this value
+            // to be set to 333. This is here to smooth the OESS -> VN migrations.
+            // The old OESS automation models didn't specify a min-interval and
+            // IOS-XR defaults to 333 and a multiplier of 3.
+            default 333;
+          }
+        }
+
+        // multihop
+        //   ttl
+        //   static-route-ipv4{}/... (DISABLED)
+        //   static-route-ipv6{}/... (DISABLED)
+        uses peer-config:multihop {
+          refine "multihop/static-route-ipv4" {
+            tailf:hidden DISABLE;
+          }
+          refine "multihop/static-route-ipv6" {
+            tailf:hidden DISABLE;
+          }
+        }
+      }
+
+      // Template variables
+      // Useful for non-scalar variables or more complex data-structures for
+      // template logic
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        leaf rd-rt-suffix {
+          tailf:info "Route Distinguisher and Route Target Suffix";
+          type uint16;
+        }
+      }
+
+    }
+  }
+
+  grouping oess-legacy {
+    // OESS compatibility items
+    container oess-legacy {
+      tailf:info "OESS Compatibility parameters";
+      leaf oess-network-id {
+        tailf:info "Legacy OESS Instance ID";
+        type uint32;
+      }
+      leaf vpn-rd-suffix {
+        tailf:info "Legacy OESS Route Distinguisher Suffix";
+        type uint32 {
+          range "1..65535"; // TODO
+        }
+        when ../oess-network-id;
+        mandatory true;
+      }
+      leaf vpn-rt-suffix {
+        tailf:info "Legacy OESS Route Target Suffix";
+        type uint32 {
+          range "1..4294967295"; // TODO
+        }
+        when ../oess-network-id;
+        mandatory true;
+      }
+    }
+  }
+}

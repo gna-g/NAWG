@@ -1,0 +1,134 @@
+module pdp-iosxr {
+
+  namespace "https://internet2.edu/yang/pdp-iosxr";
+  prefix pdp-iosxr;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import tailf-ned-cisco-ios-xr {
+    prefix xr;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  // internet2 common package
+  import pdp {
+    prefix pdp;
+  }
+
+  description
+   "IOS-XR specific bits for PDP";
+
+  // Augment PDP with some ios-xr specific components.
+  augment /ncs:services/pdp:pdp {
+    uses ios-xr;
+  }
+
+  // IOS-XR specific PDP config
+  grouping ios-xr {
+    container ios-xr {
+      tailf:info "IOS-XR interfaces";
+
+      when "starts-with(deref(../pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'cisco-iosxr-cli')" {
+        tailf:dependency "../pdp:device";
+      }
+      must "not(count(interfaces/*/id) > 1 and count(../pdp:lag-id) = 0)" {
+        error-message
+         "lag-id must be set when more than one interface is specified";
+        tailf:dependency "interfaces";
+        tailf:dependency "../pdp:lag-id";
+      }
+      must "count(interfaces/*/id) >= 1" {
+        error-message
+         "At least one interface must be selected in a PDP";
+        tailf:dependency "interfaces";
+      }
+
+      container interfaces {
+        list GigabitEthernet {
+          key "id";
+          tailf:info "Interface ID";
+          leaf id {
+            type leafref {
+              path "deref(../../../../pdp:device)/../ncs:config/xr:interface/xr:GigabitEthernet/xr:id";
+            }
+          }
+          uses pdp:interface-fields;
+        }
+        list TenGigE {
+          key "id";
+          tailf:info "Interface ID";
+          leaf id {
+            type leafref {
+              path "deref(../../../../pdp:device)/../ncs:config/xr:interface/xr:TenGigE/xr:id";
+            }
+          }
+          uses pdp:interface-fields;
+        }
+        list FortyGigE {
+          key "id";
+          tailf:info "Interface ID";
+          leaf id {
+            type leafref {
+              path "deref(../../../../pdp:device)/../ncs:config/xr:interface/xr:FortyGigE/xr:id";
+            }
+          }
+          uses pdp:interface-fields;
+        }
+        list HundredGigE {
+          key "id";
+          tailf:info "Interface ID";
+          leaf id {
+            type leafref {
+              path "deref(../../../../pdp:device)/../ncs:config/xr:interface/xr:HundredGigE/xr:id";
+            }
+          }
+          uses pdp:interface-fields;
+        }
+        list FourHundredGigE {
+          key "id";
+          tailf:info "Interface ID";
+          leaf id {
+            type leafref {
+              path "deref(../../../../pdp:device)/../ncs:config/xr:interface/xr:FourHundredGigE/xr:id";
+            }
+          }
+          uses pdp:interface-fields;
+        }
+      }
+
+      leaf negotiation-auto {
+        tailf:info "Sets `negotiation auto` when enabled, default disabled";
+        type boolean;
+        default false;
+      }
+
+      // Logic:    TenGigE -> (negotiation-auto == false)
+      // Translation: A -> B  ===  not(A) or B
+      // X-Path logic: not(count(interfaces/TenGigE) > 0) or negotiation-auto = 'false'
+      must "not(count(interfaces/TenGigE) > 0) or negotiation-auto = 'false'" {
+        error-message
+         "negotiation-auto=true is not supported on TenGigE interfaces";
+      }
+
+      leaf service-policy {
+        tailf:info "Option to disable service-policy on an interface [default enabled]";
+        type enumeration {
+          enum "default" {
+            tailf:info "DEFAULT - determine service-policy automatically";
+          }
+          enum "disable" {
+            tailf:info "Disable service-policy, typically used with SimplePW and native encapsulation";
+          }
+        }
+        default "default";
+        tailf:cli-trim-default;
+      }
+    }
+  }
+}

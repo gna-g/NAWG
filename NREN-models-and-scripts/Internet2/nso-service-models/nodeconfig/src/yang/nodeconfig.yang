@@ -1,0 +1,244 @@
+module nodeconfig {
+
+  namespace "http://internet2.edu/yang/nodeconfig";
+  prefix nodeconfig;
+
+  include "qos";
+  include "telemetry";
+  include "netflow";
+  include "isis";
+  include "vrf";
+  include "nodeconfig-management-acl";
+  include "role";
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  // internet2 common package
+  import common {
+    prefix i2c;
+  }
+
+  description "Arroyo nodeconfig";
+
+  augment /ncs:services {
+    uses nodeconfig;
+    uses netflow-collector;
+  }
+
+  augment /i2c:internal-services {
+    uses nodeconfig-qos-top;
+    uses nodeconfig-telemetry-top;
+    uses nodeconfig-netflow-top;
+    uses nodeconfig-isis-top;
+    uses nodeconfig-vrf-top;
+    uses nodeconfig-role-top;
+    uses nodeconfig-management-acl-top;
+  }
+
+  grouping nodeconfig {
+
+    list nodeconfig {
+      tailf:info "Internet2 nodeconfig device reference";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      unique "node-identifier";
+
+      leaf name {
+        tailf:info "Device reference";
+        tailf:cli-allow-range;
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint nodeconfig-servicepoint;
+
+      leaf node-identifier {
+        description "range is based on the allocation for v4 loopbacks, 163.253.0.0/25";
+        tailf:info "This ID is used to derive IPv4/6 loopbacks, ISO address, v4/v6 SR node SID";
+        type uint16 {
+          range "0..127";
+        }
+        mandatory true;
+      }
+      must "(role != 'core' and role != 'agg') or " +
+            "((role = 'core' or role = 'agg') and node-identifier < 120)" {
+             error-message "core/agg node-identifier must be < 120";
+      }
+      must "role != 'route-reflector' or " +
+            "(role = 'route-reflector' and node-identifier >= 120)" {
+             error-message "route-reflector node-identifier must be >= 120";
+      }
+
+      uses nodeconfig-attributes;
+
+      leaf netflow {
+        tailf:info "Enable netflow [default enabled on core/agg if platform support it]";
+        tailf:hidden "full";
+        type enumeration {
+          enum "enable";
+          enum "disable";
+        }
+      }
+
+      container flags {
+        tailf:info "Feature flags for node, usually temporary";
+      }
+
+      container vars {
+        config false;
+        tailf:info "Processed config from Python";
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        leaf loopback-ipv4 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv4-address;
+        }
+
+        leaf loopback-ipv6 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv6-address;
+        }
+
+        leaf i2px-nexthop-loopback-ipv4 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv4-address;
+        }
+        leaf re-nexthop-loopback-ipv4 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv4-address;
+        }
+
+        leaf re-loopback-ipv4 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv4-address;
+        }
+
+        leaf re-loopback-ipv6 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv6-address;
+        }
+
+        leaf i2px-loopback-ipv4 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv4-address;
+        }
+
+        leaf i2px-loopback-ipv6 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv6-address;
+        }
+
+        leaf blended-loopback-ipv4 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv4-address;
+        }
+
+        leaf blended-loopback-ipv6 {
+          tailf:info "Automatically derived from the node-identifier";
+          type inet:ipv6-address;
+        }
+
+        leaf region {
+          tailf:info "Region name";
+          type string;
+        }
+
+        leaf region-i2px {
+          tailf:info "I2PX community string for this region";
+          type string;
+        }
+      }
+    }
+  }
+
+  grouping nodeconfig-attributes {
+    leaf pop {
+      tailf:info "PoP location for this node";
+      type leafref {
+        path "/i2c:infrastructure/i2c:pops/i2c:pop/i2c:name";
+      }
+      mandatory true;
+    }
+
+    leaf role {
+      tailf:info "Unique role name";
+      mandatory true;
+      type enumeration {
+        enum agg;
+        enum core;
+        enum route-reflector;
+      }
+    }
+
+    leaf admin-state {
+      tailf:info "Admin-state";
+      mandatory true;
+      type enumeration {
+        enum in-service {
+          tailf:info "Service is in active-use";
+        }
+        enum pre-maintenance {
+          tailf:info "Prepare node for maintenance -- sets isis overload bit, deprefs EBGP routes [see EBGP-MAINT-* level1]";
+        }
+        enum maintenance {
+          tailf:info "Prepare node for maintenance -- sets isis overload bit, rejects EBGP routes [RE and I2PX]";
+        }
+        enum no-config {
+          tailf:info "Input parameters into NSO, allocate node-identifier and v4 loopback, but do not apply configuration to a device";
+        }
+      }
+    }
+    leaf microloop-avoidance {
+      tailf:info "Enable microloop avoidance [defaults true]";
+      type boolean;
+      default true;
+    }
+    leaf srlg-weighted-global {
+      tailf:info "Enable SRLG weighted global [defaults true]";
+      type boolean;
+      default true;
+    }
+    uses vrf-list;
+    leaf management {
+      tailf:info "Determines where management traffic is sourced from and should be destined to [default in-band]";
+      default in-band;
+      type enumeration {
+        enum in-band {
+          tailf:info "Use in-band management (Loopback0)";
+        }
+        enum smn {
+          tailf:info "Use SMN management (MgmtEth0)";
+        }
+      }
+    }
+  }
+
+  grouping vrf-list {
+    leaf-list vrf {
+      type enumeration {
+        enum RE {
+          tailf:info "Enable RE VRF [automatic on all core/agg nodes]";
+        }
+        enum I2PX {
+          tailf:info "Enable I2PX VRF";
+        }
+        enum BLENDED {
+          tailf:info "Enable BLENDED VRF [will fail on NCS-5500 platform]";
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,102 @@
+submodule route-reports {
+  belongs-to common {
+    prefix "i2c";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  grouping rejected-routes-action {
+    tailf:action rejected-routes {
+      tailf:info "Show rejected routes for this service";
+      tailf:actionpoint rejected-routes-action;
+      input {
+        leaf timeout {
+          tailf:info "Action timeout [default 30]";
+          type uint16 {
+            range "0..300";
+          }
+          default 30;
+        }
+      }
+      output {
+        leaf message {
+          type string;
+        }
+        list neighbor-result {
+          key address;
+          leaf address {
+            type string;
+          }
+          leaf-list rejected {
+            type string;
+          }
+        }
+      }
+    }
+  }
+
+  grouping route-report-action {
+    tailf:action route-report {
+      tailf:info "Show route report for this service";
+      tailf:actionpoint route-report-action;
+      input {
+        leaf timeout {
+          tailf:info "Action timeout [default 30]";
+          type uint16 {
+            range "0..300";
+          }
+          default 30;
+        }
+      }
+      output {
+        leaf service {
+          type string;
+        }
+        leaf vrf {
+          type string;
+        }
+        list neighbor-result {
+          key address;
+          leaf address {
+            type string;
+          }
+          leaf remote-as {
+            type string;
+          }
+          leaf peer-entity {
+            type string;
+          }
+          leaf pdp-entity {
+            type string;
+          }
+          list rejected {
+            key prefix;
+            leaf prefix {
+              type string;
+            }
+            leaf origin-as {
+              type string;
+            }
+            leaf-list as-path {
+              type string;
+            }
+          }
+          list accepted {
+            key prefix;
+            leaf prefix {
+              type string;
+            }
+            leaf origin-as {
+              type string;
+            }
+            leaf-list as-path {
+              type string;
+            }
+          }
+        }
+      }
+    }
+  }
+}

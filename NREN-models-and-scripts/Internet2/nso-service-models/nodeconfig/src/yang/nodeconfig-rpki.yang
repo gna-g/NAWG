@@ -1,0 +1,88 @@
+module nodeconfig-rpki {
+  namespace "https://internet2.edu/yang/nodeconfig-rpki";
+  prefix nodeconfig-rpki;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import nodeconfig {
+    prefix nodeconfig;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  // Add a list of RPKI servers (global) we can reference
+  augment /i2c:infrastructure {
+    uses rpki-servers-top;
+  }
+
+  // Add a nodeconfig sub-service to configure rpki servers
+  augment /i2c:internal-services {
+    uses nodeconfig-rpki-top;
+  }
+
+  // Add a feature flag in nodeconfig to enable/disable feature flags
+  augment /ncs:services/nodeconfig:nodeconfig/nodeconfig:flags {
+    uses nodeconfig-rpki-flags;
+  }
+
+  grouping rpki-servers-top {
+    list rpki-server {
+      tailf:info "RPKI servers that apply to the Internet2 network";
+      key name;
+      leaf name {
+        tailf:info "Name of RPKI server";
+        type i2c:service-name;
+      }
+
+      leaf address {
+        tailf:info "Address of RPKI server (must be in default VRF)";
+        type inet:ip-address;
+      }
+      leaf port {
+        tailf:info "ROV port (default 9001)";
+        type inet:port-number;
+        default 9001;
+      }
+    }
+  }
+
+  grouping nodeconfig-rpki-top {
+    list nodeconfig-rpki {
+      tailf:info "INTERNAL - nodeconfig RPKI";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Device reference";
+        tailf:cli-allow-range;
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint nodeconfig-rpki-servicepoint;
+    }
+  }
+
+  grouping nodeconfig-rpki-flags {
+
+    leaf rpki-validation {
+      tailf:info "Enable RPKI validation [default disable]";
+      default disable;
+      type enumeration {
+        enum enable;
+        enum disable;
+      }
+    }
+
+  }
+}

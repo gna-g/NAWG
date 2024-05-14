@@ -1,0 +1,74 @@
+module vn-migrate {
+
+  namespace "https://internet2.edu/yang/vn-migrate";
+  prefix vn-migrate;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+
+  grouping migration-action {
+    tailf:action migrate-from-oess {
+      tailf:info "Migrate from OESS - will re-deploy this service and delete the oess-l3connection";
+      tailf:actionpoint migrate-from-oess-action;
+      input {
+        leaf dry-run {
+          tailf:info "Do not make any modifications, but output results";
+          type empty;
+        }
+        leaf debug-diff {
+          tailf:info "Show the original diff in addition";
+          type empty;
+        }
+        leaf quiet {
+          tailf:info "No output if there was nothing to do and no error";
+          type empty;
+        }
+        leaf force {
+          tailf:info "Force migration even if there are unrecognized changes";
+          type empty;
+        }
+      }
+      output {
+        leaf unrecognized-changes {
+          type string;
+          // Unrecognized changes (only if there are any)
+        }
+        leaf all-changes {
+          type string;
+          // All changes (only if debug-diff is set)
+        }
+        leaf all-changes-nso-cli {
+          type string;
+          // All changes in NSO diff (only if debug-diff is set)
+        }
+        leaf error {
+          type string;
+          // If there's a general failure of the commit, this will document it
+        }
+        leaf status {
+          type string;
+          // "OK - Migration complete (dry-run)"
+          // "OK - Migration complete"
+          // "ERROR - dry-run check failed, skipping"
+          // "ERROR - commit failed"
+          // "SKIP - Service was not imported from OESS" (verbose only)
+          // "SKIP - Service has already been migrated" (verbose only)
+        }
+      }
+    }
+    leaf migrate-redeploy-counter {
+      tailf:info "Used to trigger re-deploys in the migration";
+      type uint32;
+      default 0;
+      tailf:hidden "full";
+    }
+  }
+}

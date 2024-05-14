@@ -1,0 +1,35 @@
+module pdp {
+
+  namespace "https://internet2.edu/yang/pdp";
+  prefix pdp;
+
+  include "sdp-attach";
+  include "pdp-base";
+  include "pdp-map";
+  include "pdp-interface";
+
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  // internet2 common package
+  import common {
+    prefix i2c;
+  }
+
+  description "Physical Delivery Point and Service Delivery Point code";
+
+  // Augments
+  augment /ncs:services {
+    uses pdp-list;
+  }
+
+  augment /i2c:internal-services {
+    uses sdp-attach-list;
+  }
+
+  augment /i2c:meta-data {
+    uses pdp-map;
+    uses pdp-interface;
+  }
+}

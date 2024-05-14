@@ -1,0 +1,158 @@
+module vn-l2vpn {
+
+  namespace "https://internet2.edu/yang/vn-l2vpn";
+  prefix vn-l2vpn;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  import common {
+    prefix i2c;
+  }
+  import peer-config {
+    prefix peer-config;
+  }
+  import vn-migrate {
+    prefix vn-migrate;
+  }
+
+  augment /ncs:services/i2c:virtual-network {
+    uses vn-l2vpn-top;
+  }
+
+  // Top-level service
+  grouping vn-l2vpn-top {
+    list l2vpn {
+      tailf:info "Private L2VPN - Usable directly or via VirtualNetworks/Insight Console";
+      tailf:cli-allow-wildcard;
+      key name;
+      leaf name {
+        tailf:info "Service Name, eg 'ENTITY-BESPOKE-VPN'";
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint vn-l2vpn-servicepoint;
+
+      // Admin-state
+      leaf admin-state {
+        tailf:info "Admin-state of the service";
+        mandatory true;
+        type enumeration {
+          enum no-config {
+            tailf:info "Enter NSO service configuration, but do not push any config to device";
+          }
+          enum in-service {
+            tailf:info "Normal operations";
+          }
+        }
+      }
+
+      // OESS-Legacy container
+      uses oess-legacy;
+      uses vn-migrate:migration-action;
+
+      // Connections (interface + neighbor + peer) inside
+      list connection {
+        tailf:info "List of connections (interface + neighbor) part of this VPN";
+        tailf:cli-allow-wildcard;
+
+        key "name";
+        leaf name {
+          tailf:info "Name for connection";
+          type i2c:safe-string;
+          tailf:cli-allow-range;
+        }
+
+        // interface config
+        uses peer-config:intf-config-pdp {
+          refine "pdp" {
+            mandatory true;
+          }
+        }
+        uses peer-config:intf-config-encap {
+          refine "encapsulation/ENCAP" {
+            mandatory true;
+          }
+        }
+
+        // egress-rate-limit
+        uses peer-config:intf-config-egress-rate;
+
+        // per-connection operaitonal variables
+        container vars {
+          config false;
+          tailf:info "Python generated Variables";
+          tailf:cdb-oper {
+            tailf:persistent true;
+          }
+          leaf ce_id {
+            tailf:info "Unique endpoint ID used to reference participating endpoints";
+            type uint16;
+          }
+          leaf remote_ce_id {
+            tailf:info "Unique endpoint ID used to reference participating endpoints";
+            type uint16;
+          }
+          leaf if-full {
+            tailf:info "Full interface name";
+            type string;
+          }
+        }
+
+      }
+
+      // Template variables
+      // Useful for non-scalar variables or more complex data-structures for
+      // template logic
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        leaf rd-rt-suffix {
+          tailf:info "Route Distinguisher and Route Target Suffix";
+          type uint16;
+        }
+      }
+
+    }
+  }
+
+  grouping oess-legacy {
+    // OESS compatibility items
+    container oess-legacy {
+      tailf:info "OESS Compatibility parameters";
+      leaf oess-network-id {
+        tailf:info "Legacy OESS Instance ID";
+        type uint32;
+      }
+      leaf vpn-rd-suffix {
+        tailf:info "Legacy OESS Route Distinguisher Suffix";
+        type uint32 {
+          range "1..65535"; // TODO
+        }
+        when ../oess-network-id;
+        mandatory true;
+      }
+      leaf vpn-rt-suffix {
+        tailf:info "Legacy OESS Route Target Suffix";
+        type uint32 {
+          range "1..4294967295"; // TODO
+        }
+        when ../oess-network-id;
+        mandatory true;
+      }
+    }
+  }
+
+}

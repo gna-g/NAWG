@@ -1,0 +1,124 @@
+submodule vrf {
+
+  belongs-to nodeconfig {
+    prefix nodeconfig;
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  grouping nodeconfig-vrf-top {
+    list nodeconfig-blended {
+      tailf:info "INTERNAL - nodeconfig VRF";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Device reference";
+        tailf:cli-allow-range;
+        type leafref {
+            path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses loopback-default;
+      uses loopback-blended;
+
+      uses ncs:service-data;
+      ncs:servicepoint nodeconfig-blended-servicepoint;
+    }
+
+    list nodeconfig-i2px {
+      tailf:info "INTERNAL - nodeconfig VRF";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Device reference";
+        tailf:cli-allow-range;
+        type leafref {
+            path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses loopback-default;
+      uses loopback-i2px;
+
+      uses ncs:service-data;
+      ncs:servicepoint nodeconfig-i2px-servicepoint;
+    }
+
+    list nodeconfig-re {
+      tailf:info "INTERNAL - nodeconfig VRF";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Device reference";
+        tailf:cli-allow-range;
+        type leafref {
+            path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses loopback-default;
+      uses loopback-re;
+
+      uses ncs:service-data;
+      ncs:servicepoint nodeconfig-re-servicepoint;
+    }
+  }
+
+  grouping loopback-default {
+    leaf loopback-ipv4 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv4-address;
+    }
+    leaf loopback-ipv6 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv6-address;
+    }
+  }
+  grouping loopback-re {
+    leaf re-loopback-ipv4 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv4-address;
+    }
+
+    leaf re-loopback-ipv6 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv6-address;
+    }
+  }
+  grouping loopback-i2px {
+    leaf i2px-loopback-ipv4 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv4-address;
+    }
+
+    leaf i2px-loopback-ipv6 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv6-address;
+    }
+  }
+  grouping loopback-blended {
+    leaf blended-loopback-ipv4 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv4-address;
+    }
+
+    leaf blended-loopback-ipv6 {
+      tailf:info "Automatically derived from the node-identifier";
+      type inet:ipv6-address;
+    }
+  }
+}

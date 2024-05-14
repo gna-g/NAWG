@@ -1,0 +1,179 @@
+module interface-info {
+
+  namespace "https://internet2.edu/yang/interface-info";
+  prefix interface-info;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix ietf;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  augment /ncs:devices/ncs:device {
+    container interface-info {
+      tailf:info "Interface information cache";
+
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+
+      uses interface-cache;
+      uses refresh-action;
+      uses clear-action;
+    }
+  }
+
+  augment /ncs:devices {
+    container interface-info {
+      tailf:info "Interface information cache";
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+
+      uses refresh-all-action;
+      uses clear-all-action;
+    }
+  }
+
+  grouping interface-cache {
+    leaf last-update {
+      tailf:info "Date/time when the interface information was last updated";
+      type ietf:date-and-time;
+    }
+
+    list interface {
+      tailf:info "Interface available on device";
+      key name;
+      ordered-by user;
+
+      leaf name {
+        type string;
+        tailf:cli-column-width 25;
+      }
+      leaf bandwidth {
+        tailf:info "Link bandwidth in Mbps";
+        type uint32;
+        tailf:cli-column-width 9;
+      }
+      leaf description {
+        type string;
+        tailf:cli-column-width 80;
+      }
+    }
+
+  }
+
+  grouping refresh-action {
+    tailf:action refresh {
+      tailf:info "Refresh the interface-info cache";
+      tailf:actionpoint interface-info-refresh-action;
+      input {
+        leaf suppress-positive-results {
+          tailf:info "Do not show a status message when successful";
+          type empty;
+        }
+
+        leaf verbose {
+          tailf:info "Display interfaces detected during refresh";
+          type empty;
+        }
+
+        leaf timeout {
+          tailf:info "Action timeout in seconds [default 30]";
+          type uint16;
+          default 30;
+        }
+      }
+      output {
+        uses refresh-output-device;
+      }
+    }
+  }
+
+  grouping refresh-all-action {
+    tailf:action refresh {
+      tailf:info "Refresh the interface-info cache for all devices";
+      tailf:actionpoint interface-info-refresh-all-action;
+      input {
+        leaf suppress-positive-results {
+          tailf:info "Do not show a status message when successful";
+          type empty;
+        }
+        leaf verbose {
+          tailf:info "Display interfaces detected during refresh";
+          type empty;
+        }
+        leaf timeout {
+          tailf:info "Action timeout in seconds [default 900]";
+          type uint16;
+          default 600;
+        }
+      }
+      output {
+        list device {
+          key name;
+          leaf name {
+            tailf:info "Device Name";
+            type string;
+          }
+
+          uses refresh-output-device;
+        }
+      }
+    }
+  }
+
+  grouping refresh-output-device {
+    description "refresh output for a given device";
+    leaf status {
+      tailf:info "Result of the refresh";
+      type string;
+    }
+    list interface {
+      tailf:info "Interfaces on device";
+      leaf name {
+        type string;
+      }
+      leaf bandwidth {
+        type uint32;
+      }
+      leaf description {
+        type string;
+      }
+    }
+  }
+
+  grouping clear-action {
+    tailf:action clear {
+      tailf:info "Clear interface cache for a specific device";
+      tailf:actionpoint interface-info-clear-action;
+      tailf:hidden "full";
+      input {
+      }
+      output {
+      }
+    }
+  }
+
+  grouping clear-all-action {
+    tailf:action clear {
+      tailf:info "Clear interface cache for all devices";
+      tailf:actionpoint interface-info-clear-all-action;
+      tailf:hidden "full";
+      input {
+      }
+      output {
+      }
+    }
+  }
+
+}

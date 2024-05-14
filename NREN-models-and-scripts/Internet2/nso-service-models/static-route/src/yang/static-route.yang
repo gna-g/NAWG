@@ -1,0 +1,134 @@
+module static-route {
+
+  namespace "http://internet2.edu/yang/static-route";
+  prefix static-route;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import pdp {
+    prefix pdp;
+  }
+  import common {
+    prefix i2c;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  description "Basic Layer 3 IP services";
+
+  augment /ncs:services {
+    uses static-route-top;
+  }
+
+  grouping static-route-top {
+    list static-route {
+      tailf:info "Create a static route on a device";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        type i2c:service-name;
+        tailf:info "Unique service name for this route";
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint static-route-servicepoint;
+
+      leaf admin-state {
+        mandatory true;
+        type enumeration {
+          enum in-service {
+            tailf:info "Place static-route onto router for normal operation";
+          }
+          enum no-config {
+            tailf:info "Enter service parameters into NSO, but do not alter device";
+          }
+        }
+      }
+
+      leaf device {
+        tailf:info "PDP device name";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+        mandatory true;
+      }
+
+      leaf vrf {
+        tailf:info "Which VRF this route exists in";
+        type enumeration {
+          enum RE;
+          enum I2PX;
+          enum BLENDED;
+        }
+        mandatory true;
+      }
+
+
+      leaf bgp-policy {
+        tailf:info "Specify the IOS-XR network policy";
+        type union {
+          type enumeration {
+            enum RPL-OSG-AGG;
+            // add any other common RPL here
+          }
+          type string {
+            tailf:info "Specify a custom route-policy";
+          }
+        }
+      }
+
+      leaf prefix {
+        tailf:info "Prefix to route";
+        type inet:ip-prefix;
+      }
+
+      leaf discard {
+        tailf:info "Discard traffic, route to Null0";
+        type boolean;
+        default false;
+      }
+
+      leaf nh-interface {
+        tailf:info "Interface to route to";
+        type string {
+          pattern "[a-zA-Z0-9.:/-]+";
+        }
+      }
+
+      leaf nh-address {
+        tailf:info "Address to route traffic to, must match address family of the prefix";
+        type inet:ip-address;
+      }
+
+      must "(nh-interface != '' or nh-address != '') or discard = 'true'" {
+        error-message "nh-interface or nh-address must be defined or discard must be true";
+      }
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        leaf family {
+          type string; // ipv4 or ipv6
+        }
+        leaf  type {
+          type enumeration {
+            enum address;
+            enum interface;
+            enum both;
+            enum discard;
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+module device-workflow {
+
+  namespace "http://internet2.edu/yang/device-workflow";
+  prefix device-workflow;
+
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  include "add-device";
+  include "add-interface-descriptions";
+
+  description "device workflow actions";
+
+  augment /i2c:workflow {
+    uses add-device-action;
+    uses add-interface-descriptions-action;
+  }
+
+  // Older stuff
+  augment /ncs:devices {
+    uses add-device-action;
+  }
+
+  augment /ncs:devices/ncs:device {
+    uses add-interface-descriptions-action;
+  }
+
+}

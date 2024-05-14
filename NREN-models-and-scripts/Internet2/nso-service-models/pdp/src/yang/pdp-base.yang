@@ -1,0 +1,460 @@
+submodule pdp-base {
+
+  belongs-to pdp {
+    prefix "pdp";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  // Groups below here
+  grouping pdp-list {
+    list pdp {
+      tailf:info "Physical Delivery Point - think 'interface', but more abstract";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Name for the PDP";
+        tailf:cli-allow-range;
+        type i2c:service-name {
+          pattern
+           "[A-Z][A-Z0-9]+-[A-Z0-9_-]+-[0-9]+" {
+            error-message
+             "PDP name must be in the form of POP1-XYZ-N, where XYZ can be [A-Z0-9_-] and N can be any number";
+          }
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint pdp-servicepoint;
+
+      // defines an entity leaf for a PDP
+      uses i2c:entity-leaf;
+
+      leaf description-auto {
+        tailf:info "Automatic description provided by a higher level services";
+        tailf:hidden "full";
+        type i2c:safe-string {
+          length "0..100";
+        }
+      }
+      leaf description-extra {
+        tailf:info "Extra comments added to the interface description";
+        type i2c:safe-string {
+          length "0..100";
+        }
+      }
+
+      // Device that the PDP is applied to
+      leaf device {
+        tailf:info "Device the service is delivered on";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+        mandatory true;
+      }
+
+      // Admin-state
+      leaf admin-state {
+        tailf:info "Admin-state of interface + sub-interfaces (default disabled)";
+        type enumeration {
+          enum no-config {
+            tailf:info "Prepare PDP but do not apply configuration";
+          }
+          enum in-service {
+            tailf:info "PDP is in-service";
+          }
+          enum down {
+            tailf:info "Shutdown interface and sub-interfaces";
+          }
+        }
+        mandatory true;
+      }
+
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+
+      unique "device lag-id";
+      must "not(lag-circuit-id) or lag-id" {
+        error-message
+         "Cannot use lag-circuit-id unless lag-id is set";
+      }
+
+      // Enabling features based on NED type
+      // ios-xr, junos, eos
+      uses lag {
+       when "starts-with(deref(pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'cisco-iosxr-cli') or starts-with(deref(pdp:device)/../ncs:device-type/ncs:netconf/ncs:ned-id, 'juniper-junos-nc') or starts-with(deref(pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'arista-dcs-cli')" {
+          tailf:dependency "../pdp:device";
+        }
+      }
+
+      // ios-xr
+      uses lldp {
+       when "starts-with(deref(pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'cisco-iosxr-cli')" {
+          tailf:dependency "../pdp:device";
+        }
+      }
+
+      // ios-xr
+      uses role {
+       when "starts-with(deref(pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'cisco-iosxr-cli')" {
+          tailf:dependency "../pdp:device";
+        }
+      }
+
+      // ios-xr
+      uses override-mac {
+       when "starts-with(deref(pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'cisco-iosxr-cli')" {
+          tailf:dependency "../pdp:device";
+        }
+      }
+
+      // Cloud-connect meta-data
+      uses cloudconnect;
+
+      uses i2c:service-id-leaf;
+
+      leaf remote-pop {
+        tailf:info "Specify the POP on the other end of the CircuitID, default is the node's POP";
+        tailf:hidden "full";
+        type i2c:safe-string;
+      }
+
+      // // Note to other services that are using this
+      // Note that these vars is not populated until PDP is committed and the PDP
+      // is created/modified in the same commit as your service, it may be blank
+      // or contain an old value.
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+        leaf device {
+          tailf:info "Device this is provisioned on";
+          type string;
+        }
+        leaf local-pop {
+          tailf:info "Local POP this PDP terminates in";
+          type string;
+        }
+        leaf if-full {
+          tailf:info "Full interface name";
+          type string;
+        }
+        leaf description-lag {
+          tailf:info "Main LAG interface description";
+          type string;
+        }
+        leaf override-mac-iosxr {
+          tailf:info "IOS-XR formatted mac. 0011.2233.4455 with leading 0s stripped";
+          type string;
+        }
+      }
+    } // end: list pdp
+  } // end: group pdp-list
+
+  grouping lag {
+    // Linkagg Configuration
+    leaf lag-id {
+      tailf:info "Aggregate ID, will enable linkagg when set";
+      type uint32 {
+        range "1..65535";
+      }
+    }
+
+    // Aggregation type
+    leaf lag-type {
+      tailf:info "Configure linkagg-mode (default active)";
+      type enumeration {
+        enum static {
+          tailf:info "No LACP negotiation - not valid for JunOS or EOS";
+        }
+        enum lacp-active {
+          tailf:info "LACP active mode (default)";
+        }
+        enum lacp-passive {
+          tailf:info "LACP passive mode";
+        }
+      }
+      default lacp-active;
+    }
+
+    // LACP period
+    leaf lacp-period {
+      tailf:info "LACP Period (default slow)";
+      type enumeration {
+        enum fast {
+          tailf:info "LACP Fast Polling";
+        }
+        enum slow {
+          tailf:info "LACP Slow Polling (default)";
+        }
+      }
+      default slow;
+    }
+    leaf lag-circuit-id {
+      tailf:info "Specify CircuitID for LAG/bundle/ae";
+      type i2c:circuit-id-with-allocate;
+    }
+  } // end: group lag
+
+  grouping override-mac {
+    // Override default MAC on an interface
+    leaf override-mac {
+      type string {
+        pattern
+         '[0-9a-f]{4}(.[0-9a-f]{4}){2}';
+      }
+      tailf:info "Specify a MAC address to use on this interface/pdp instead of the OS-generated MAC";
+    }
+  }
+
+  grouping lldp {
+    // LLDP
+    leaf lldp {
+      tailf:info "LLDP config (default enable)";
+      type enumeration {
+        enum enable {
+          tailf:info "Enable LLDP on interfaces (default)";
+        }
+        enum disable {
+          tailf:info "Disable LLDP completely";
+        }
+        enum rx-only {
+          tailf:info "Only receive LLDP, do not transmit";
+        }
+      }
+      default enable;
+    }
+  }
+
+  grouping role {
+    leaf role {
+      tailf:info "Configure PDP role, affects Ethernet MTU, interface dampening, and QOS profile";
+      mandatory true;
+      type enumeration {
+        enum al2s {
+          tailf:info "AL2S port - Virtual Networks services only, typically no RE/I2PX services";
+        }
+        enum backbone {
+          tailf:info "MPLS backbone port, increased Ethernet MTU, interface dampening";
+        }
+        enum cloudconnect {
+          tailf:info "CloudConnect provider facing port managed by Virtual Networks";
+        }
+        enum gxp {
+          tailf:info "Participant port on a Global eXchange Point device (WIX/MANLAN)";
+        }
+        enum peer {
+          tailf:info "IXP/PNI port used for external peering (RE/I2PX/etc)";
+        }
+        enum platform {
+          tailf:info "Connector / Member port";
+        }
+        enum rpi {
+          tailf:info "Rapid Private Interconnect port at interconnect site, typically no RE/I2PX services";
+        }
+        enum rpi-macsec {
+          tailf:info "Rapid Private Interconnect port facing a connector/member; typically used for MACSEC services";
+        }
+
+        // Deprecated items
+        enum edge {
+          tailf:info "DEPRECATED - use other type if vailable; Interface MTU: XR=9144, JunOS=9152";
+        }
+      }
+    }
+  }
+
+  grouping cloudconnect {
+    container cloudconnect {
+      tailf:info "Meta-data about cloud-connect ports";
+      when "../role = 'cloudconnect'";
+      choice CC-METADATA {
+        container aws {
+          tailf:info "AWS DirectConnect Interconnect";
+          presence true;
+
+          leaf interconnect-id {
+            tailf:info "Interconnect ID, eg: dxcon-abcd1234";
+            type string {
+              pattern "[a-z0-9-]+";
+              length "1..20";
+            }
+          }
+          leaf region {
+            tailf:info "AWS Region this connects to";
+            type enumeration {
+              enum "us-east-1";
+              enum "us-east-2";
+              enum "us-west-1";
+            }
+          }
+        }
+        container azure {
+          tailf:info "Azure ExpressRoute";
+          presence true;
+
+          leaf port {
+            tailf:info "Azure port name, eg: INTERNET2-[xyz]-[PRI,SEC]-[###]";
+            // [###] will match between the PRI and SEC, but the xyz may not
+            type string {
+              pattern "[a-zA-Z0-9-]+";
+              length "10..50";
+            }
+          }
+          leaf resource-group {
+            tailf:info "Azure resource-group this interface belongs to";
+            type enumeration {
+              enum "CrossConnection-Chicago";
+              enum "CrossConnection-Dallas";
+              enum "CrossConnection-SiliconValley";
+              enum "CrossConnection-WashingtonDC";
+            }
+          }
+        }
+        container azure-gov {
+          tailf:info "Azure ExpressRoute GovCloud";
+          presence true;
+
+          leaf port {
+            tailf:info "Azure port name, eg: INTERNET2-[xyz]-[PRI,SEC]-[###]";
+            // [###] will match between the PRI and SEC, but the xyz may not
+            type string {
+              pattern "[a-zA-Z0-9-]+";
+              length "10..50";
+            }
+          }
+          leaf resource-group {
+            tailf:info "Azure resource-group this interface belongs to";
+            type enumeration {
+              enum "CrossConnection-Dallas";
+              enum "CrossConnection-WashingtonDC";
+            }
+          }
+        }
+        container gcp {
+          tailf:info "GCP Interconnect";
+          presence true;
+
+          // The full URL is something like this:
+          //  https://www.googleapis.com/compute/v1/projects/internet2-gcipartner/global/interconnects/gci-[pop]-[spd]-zone[1,2]
+          // For now, we're going to see if we can decompose it into something easier to manage for neteng
+
+          leaf project {
+            tailf:info "GCP project name, (default is internet2-gcipartner)";
+            tailf:cli-trim-default;
+            type enumeration {
+              enum "internet2-gcipartner";
+            }
+            default "internet2-gcipartner";
+          }
+
+          leaf interconnect-name {
+            tailf:info "GCP Interconnect name, eg: gci-[pop]-[spd]-zone[1,2]";
+            type string {
+              pattern "gci-[a-z0-9/.-]+";
+              length "1..30";
+            }
+          }
+          leaf region {
+            tailf:info "DEPRECATED - GCP Region this connects to";
+            type enumeration {
+              enum "us-central1";
+              enum "us-east4";
+              enum "us-west1";
+              enum "us-west2";
+            }
+          }
+          leaf interconnect-location {
+            tailf:info "GCP interconnect location - see https://cloud.google.com/network-connectivity/docs/interconnect/concepts/choosing-colocation-facilities";
+            type enumeration {
+              enum "dfw-zone1-4";
+              enum "dfw-zone2-4";
+              enum "iad-zone1-1";
+              enum "iad-zone2-1";
+              enum "ord-zone1-7";
+              enum "ord-zone2-7";
+              enum "sjc-zone1-6";
+              enum "sjc-zone2-6";
+            }
+          }
+        }
+        container oci {
+          tailf:info "OCI FastConnect";
+          presence true;
+
+          leaf ocid {
+            tailf:info "Oracle Cloud Identifier, eg: ocid1.<RESOURCE TYPE>.<REALM>.[REGION][.FUTURE USE].<UNIQUE ID>";
+            // <RESOURCE TYPE> is crossconnect or crossconnectgroup
+            // <REALM> is oc1, oc2
+            // [REGION] is iad, phx, us-langely
+            // <Unique ID> is "aaaaaa..."
+            type string {
+              pattern "[a-z0-9.-]+";
+              length "5..120";
+            }
+          }
+          leaf region {
+            tailf:info "OCI Region this connects to";
+            type enumeration {
+              enum "us-ashburn-1";
+              enum "us-chicago-1";
+              enum "us-phoenix-1";
+              enum "us-sanjose-1";
+            }
+          }
+        }
+        container oci-gov {
+          tailf:info "OCI FastConnect GovCloud";
+          presence true;
+
+          leaf ocid {
+            tailf:info "Oracle Cloud Identifier, eg: ocid1.<RESOURCE TYPE>.<REALM>.[REGION][.FUTURE USE].<UNIQUE ID>";
+            // <RESOURCE TYPE> is crossconnect or crossconnectgroup
+            // <REALM> is oc1, oc2
+            // [REGION] is iad, phx, us-langely
+            // <Unique ID> is "aaaaaa..."
+            type string {
+              pattern "[a-z0-9.-]+";
+              length "5..120";
+            }
+          }
+          leaf region {
+            tailf:info "OCI Region this connects to";
+            type enumeration {
+              enum "us-langley-1";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping interface-fields {
+    leaf circuit-id {
+      tailf:info "circuit-id of LAG member [default none]";
+      type i2c:circuit-id-with-allocate;
+    }
+
+    container vars {
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+      leaf description {
+        tailf:info "Interface description for this specific sub-interface";
+        type string;
+      }
+    }
+  }
+}
