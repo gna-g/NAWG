@@ -1,0 +1,137 @@
+module evpn {
+
+  namespace "https://internet2.edu/yang/evpn";
+  prefix evpn;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+ import pdp {
+    prefix i2-pdp;
+  }
+
+  import common {
+    prefix i2c;
+  }
+
+  augment /ncs:services {
+    uses evpn-layer2-top;
+  }
+
+  // Top-level service
+  grouping evpn-layer2-top {
+    list evpn-layer2 {
+      tailf:info "EVPN Layer2 Service";
+      tailf:cli-allow-wildcard;
+      key name;
+      leaf name {
+        tailf:info "EVPN Name (e.g GXP-WIX-GEANT-1)";
+        tailf:cli-allow-range;
+        type i2c:service-name;
+        mandatory true;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint evpn-layer2-servicepoint;
+
+      leaf admin-state {
+        tailf:info "Admin-state of the service";
+        mandatory true;
+        type enumeration {
+          enum no-config {
+            tailf:info "Enter NSO service configuration, but do not push any config to device";
+          }
+          enum in-service {
+            tailf:info "Normal operations";
+          }
+        }
+      }
+      uses i2c:entity-leaf;
+
+      list pdp {
+        tailf:info "Internet2 Physical Delivery Point - EVPN service must define at least two PDPs.";
+        key name;
+
+        leaf name {
+          type leafref {
+            path "/ncs:services/i2-pdp:pdp/i2-pdp:name";
+          }
+        }
+        min-elements 2;
+        max-elements 20;
+
+        container encapsulation {
+          container dot1q {
+            leaf vlan-id {
+              tailf:info "Specify VLAN ID";
+              type uint16 {
+                range "2..4095";
+              }
+              mandatory true;
+            }
+          }
+        }
+      }
+
+      uses i2c:service-id-leaf;
+
+      container oess-legacy {
+        tailf:info "Legacy OESS config";
+        leaf vni-rd-rt-suffix {
+          tailf:info "Legacy OESS VNI, RD, RT suffix";
+          type uint16;
+        }
+        // leaf BOOLEAN - indicates migration to Arista - redeploys all endpoints with vars vni-rd-rt-suffix
+        // other option is to migrate when an Arista PDP is added
+      }
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        leaf description-auto {
+          tailf:info "Sub-interface description";
+          type string;
+        }
+
+        list pdp {
+          tailf:info "EVPN PDP";
+          key name;
+          leaf name {
+            tailf:info "Referenced PDP";
+            type leafref {
+              path "/ncs:services/i2-pdp:pdp/i2-pdp:name";
+            }
+          }
+          leaf if-full {
+            tailf:info "PDP interface name";
+            type string;
+          }
+
+          leaf device-internal-vlan {
+            tailf:info "Arista EOS per device global vlan";
+            type uint16 {
+              range "2..4050";
+            }
+          }
+        }
+
+        leaf vni-rd-rt-suffix {
+          tailf:info "VNI, RD, RT suffix";
+          type uint16 {
+            range "10000..49999";
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,240 @@
+module common {
+  namespace "http://internet2.edu/yang/common";
+  prefix i2c;
+
+  // Import statements
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import ietf-yang-types {
+    prefix yang;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  include "circuit-id-pool";
+  include "entity";
+  include "route-reports";
+
+  // Container for Arroyo-internal services. These are usually only instantiated
+  // by other services
+  container internal-services {
+    tailf:info "INTERNAL - Arroyo-internal services; things in here are only configured by higher-level services";
+  }
+
+  container meta-data {
+    tailf:info "Metadata about Arroyo services";
+  }
+
+  container workflow {
+    tailf:info "Multi-step workflow tools";
+  }
+
+  augment /ncs:services {
+    container virtual-network;
+  }
+
+  container infrastructure {
+    tailf:info "Various data related to Internet2 infrastructure";
+
+    // We will need a process to automatically curate this data
+    // Karl is not sure members fit under infrastructure
+    container members {
+      tailf:info "List of Internet2 members";
+      list member {
+        tailf:info "Internet2 member";
+
+        key "name";
+        leaf name {
+          tailf:info "Member name";
+          type i2c:service-name; // this can probably be relaxed at some point
+        }
+        leaf domain {
+          tailf:info "Member domain";
+          type i2c:service-name; // this can probably be relaxed at some point
+        }
+      }
+    }
+
+    // We will need a process to sync this data from GlobalNOC DB
+    // pre-populating into NSO for the time being
+    container pops {
+      tailf:info "List of Internet2 PoPs";
+      list pop {
+        tailf:info "List of Internet2 PoPs";
+
+        key "name";
+        leaf name {
+          tailf:info "PoP instance";
+          type string {
+            pattern "[A-Z][0-9A-Z]*" {
+              error-message "POP Name must only contain A-Z,0-9 and must start with A-Z";
+            }
+          }
+        }
+
+        leaf region {
+          tailf:info "US Region";
+          mandatory true;
+          type enumeration {
+            enum US-NW;
+            enum US-CW;
+            enum US-SW;
+            enum US-NC;
+            enum US-SC;
+            enum US-NE;
+            enum US-CE;
+            enum US-SE;
+            enum EUROPE;
+          }
+        }
+      }
+      list route-distance {
+        tailf:info "PoP route distance";
+        key "pop-a pop-z";
+        leaf pop-a {
+          type leafref {
+            path "/i2c:infrastructure/i2c:pops/i2c:pop/i2c:name";
+          }
+        }
+        leaf pop-z {
+          type leafref {
+            path "/i2c:infrastructure/i2c:pops/i2c:pop/i2c:name";
+          }
+        }
+        leaf distance {
+          tailf:info "Distance between PoPs in route-kilometers";
+          type uint16;
+        }
+        leaf-list srlg {
+          tailf:info "SRLG value";
+          type uint32;
+        }
+        must "count(../route-distance[pop-a=current()/pop-z][pop-z=current()/pop-a]) = 0" {
+          error-message "pop-z and pop-a are already defined";
+        }
+        must "pop-a != pop-z" {
+          error-message "pop-a and pop-z cannot be the same";
+        } // same-pop is always 1.
+      }
+    }
+
+    uses circuit-id-pool;
+    uses entity-top;
+  }
+
+  augment /ncs:devices/ncs:device {
+    uses pop;
+  }
+
+  typedef service-name {
+    description "A string used for service name identifiers";
+    type string {
+      // This puts arbitrary bounds on the length of the service.
+      // It's not like anything >81 is unsafe, it's just guard rails.
+      length "2..80";
+
+      // 1. Must start with alpha
+      // 2. Must end with alphanum
+      // 3. Must only contain alphanum + undrecore (_) + dash (-)
+      // 4. Must be at least 2 characters. Realistically, your fellow engineers
+      //    will probably hate you if you even try 2-char service names.
+      pattern "[A-Z][0-9A-Z_-]*[0-9A-Z]" {
+        error-message "Service name may only contain [0-9A-Z-_], start with an alpha, and end with an alphanum";
+      }
+    }
+  }
+
+  typedef safe-string {
+    description "A string that has some practial limits around it";
+    type string {
+      pattern '[-~a-zA-Z0-9_+.,:;()/ \[\]|]*';
+      // a-z, A-Z, [0-9]
+      // (dash), (plus), (comma), (period), (collon), (semicolon), (parenthesis)
+      // (space), (brackets)
+    }
+  }
+
+  grouping service-id-leaf {
+    leaf service-id {
+      tailf:info "Service ID, this should match up with the Service Name in the NOC-DB without the leading 'I2-S'";
+      type uint32;
+    }
+  }
+
+  grouping pending-leaf {
+    leaf pending {
+      tailf:info "Add [PENDING][stuff] to an interface description, ie 'Kanban1234'";
+      type string {
+        pattern '[-~a-zA-Z0-9_+.,:;()/ |]*';
+        length "1..40";
+      }
+    }
+  }
+  grouping no-monitor-leaf {
+    leaf no-monitor {
+      tailf:info "Add [NO-MONITOR] to descriptions";
+      type boolean;
+      default false;
+      tailf:cli-trim-default;
+    }
+  }
+  grouping unresponsive-leaf {
+    leaf unresponsive {
+      tailf:info "Add [UNRESPONSIVE] to description";
+      type boolean;
+      default false;
+      tailf:cli-trim-default;
+    }
+  }
+
+  grouping metadata {
+    container metadata {
+      tailf:info "Instance metadata";
+      container provisioning {
+        tailf:info "Instance data from the Arroyo Provisioning workflow";
+        leaf domain {
+          tailf:info "Instance owner domain";
+          type leafref {
+            path "/i2c:infrastructure/i2c:members/i2c:member/i2c:domain";
+          }
+        }
+        leaf date-created {
+          tailf:info "Creation date - maintained by provisioning - e.g 2021-01-20T12:00:00-05:00";
+          type yang:date-and-time;
+        }
+        leaf date-modified {
+          tailf:info "Modification date - maintained by provisioning - e.g 2021-01-20T12:00:00-05:00";
+          type yang:date-and-time;
+        }
+      }
+    }
+  }
+  grouping pop {
+    leaf pop {
+      tailf:info "PoP location for this node";
+      type leafref {
+        path "/i2c:infrastructure/i2c:pops/i2c:pop/i2c:name";
+      }
+    }
+  }
+
+  grouping entity-leaf {
+    leaf entity {
+      tailf:info "Entity associated with this service";
+      type leafref {
+        path "/i2c:infrastructure/i2c:entity/i2c:name";
+      }
+    }
+  }
+
+  grouping description-extra-leaf {
+    leaf description-extra {
+      tailf:info "Extra information for bgp/sub-interface description, use as a last resort";
+      type i2c:safe-string;
+    }
+  }
+}

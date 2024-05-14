@@ -1,0 +1,133 @@
+submodule role {
+
+    belongs-to nodeconfig {
+        prefix "nodeconfig";
+    }
+
+    import ietf-inet-types {
+        prefix inet;
+    }
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+
+    grouping nodeconfig-role-top {
+        list nodeconfig-role {
+            tailf:info "INTERNAL - nodeconfig role";
+            tailf:cli-allow-wildcard;
+
+            key name;
+            leaf name {
+                tailf:info "Device reference";
+                tailf:cli-allow-range;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf role {
+                tailf:info "Unique role name";
+                type enumeration {
+                    enum agg;
+                    enum core;
+                    enum route-reflector;
+                }
+            }
+
+            leaf management {
+                tailf:info "Determines where management traffic is sourced from and should be destined to; defaults to in-band";
+                default in-band;
+                type enumeration {
+                    enum in-band {
+                        tailf:info "Use in-band management (Loopback0)";
+                    }
+                    enum smn {
+                        tailf:info "Use SMN management (MgmtEth0)";
+                    }
+                }
+            }
+
+            container vars {
+                config false;
+                tailf:info "Processed config from Python";
+                tailf:cdb-oper {
+                    tailf:persistent true;
+                }
+
+                leaf bfd_mp_loc {
+                    type string;
+                    default "INVALID-RP";
+                }
+
+                leaf model {
+                    type string;
+                }
+
+                container dns {
+                    tailf:info "DNS config is protected and updated via external workflow";
+                    leaf domain-name {
+                        tailf:info "Define the default domain name - defaults to net.internet2.edu";
+                        type inet:domain-name;
+                        default "net.internet2.edu";
+                    }
+                    leaf-list servers {
+                        tailf:info "List of name servers - A.B.C.D or X:X::X";
+                        type inet:ip-address;
+                    }
+                }
+
+                container syslog {
+                    tailf:info "Syslog config is protected and updated via external workflow";
+                    leaf-list servers {
+                        tailf:info "List of syslog servers - - A.B.C.D or X:X::X";
+                        type inet:ip-address;
+                    }
+                }
+
+                container ntp {
+                    tailf:info "NTP config is protected and updated via external workflow";
+                    leaf-list servers {
+                        tailf:info "List of NTP servers - - A.B.C.D or X:X::X";
+                        type inet:ip-address;
+                    }
+                }
+
+                list access-lists {
+                    tailf:info "Access list config is protected and updated via external workflow";
+                    key name;
+                    leaf name {
+                        tailf:info "List name";
+                        type string;
+                    }
+                    leaf-list entries {
+                        tailf:info "List of entries";
+                        type union {
+                        type inet:ip-address;
+                        type tailf:ip-address-and-prefix-length;
+                        }
+                    }
+                }
+
+                list community-set {
+                    tailf:info "Community set config is protected and updated via external workflow";
+                    key name;
+                    leaf name {
+                        tailf:info "Community set name";
+                        type string;
+                    }
+                    leaf-list value {
+                        tailf:info "Community set value";
+                        type string {
+                        pattern '([0-9]+:[0-9*]+)';
+                        }
+                    }
+                }
+            }
+            uses ncs:service-data;
+            ncs:servicepoint nodeconfig-role-servicepoint;
+        }
+    }
+}

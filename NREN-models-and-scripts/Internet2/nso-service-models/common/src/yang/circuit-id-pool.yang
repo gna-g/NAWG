@@ -1,0 +1,112 @@
+submodule circuit-id-pool {
+  belongs-to common {
+    prefix "i2c";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+
+  typedef circuit-id-with-allocate {
+    type union {
+      type circuit-id;
+
+      // allocate
+      type enumeration {
+        enum allocate-new {
+          tailf:info "Allocate new CircuitID from pool";
+        }
+      }
+    }
+  }
+
+  typedef circuit-id {
+    type uint64 {
+      tailf:info "NUMBER - Specify an existing Circuit ID";
+    }
+  }
+
+  grouping circuit-id-pool {
+    container circuit-id-pool {
+      tailf:info "Pool of CircuitID Ranges pre-allocated from the NOC-DB for use";
+
+      uses pool-ranges;
+
+      tailf:action allocate-new {
+        tailf:hidden "full";
+        tailf:actionpoint circuit-id-allocate-new;
+        tailf:info "Allocate new circuit IDs out of the pools";
+        input {
+          leaf count {
+            tailf:info "Number of CircuitIDs to request";
+            type uint64;
+            mandatory true;
+          }
+        }
+        output {
+          list circuit-id {
+            key id;
+            leaf id {
+              type uint64;
+            }
+          }
+        }
+      }
+
+      tailf:action remove-exhausted {
+        tailf:actionpoint circuit-id-remove-exhausted;
+        tailf:info "Remove exhausted ranges";
+
+        input {
+          container dry-run {
+            tailf:info "Do not make any changes";
+            presence "";
+          }
+        }
+        output {
+          list range {
+            key name;
+            leaf name {
+              type string;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  grouping pool-ranges {
+    list range {
+      tailf:info "Range of available Circuit IDs";
+
+      key name;
+      leaf name {
+        type string {
+          pattern "[A-Za-z0-9_-]+";
+        }
+      }
+
+      leaf start-id {
+        type uint64;
+        mandatory true;
+        tailf:info "First ID in the range, inclusive";
+      }
+      leaf end-id {
+        type uint64;
+        mandatory true;
+        tailf:info "Last ID in the range, inclusive";
+      }
+      leaf next-id {
+        type uint64;
+        tailf:info "Next ID to hand out from range -- start-id if blank";
+      }
+      must "start-id < end-id" {
+        error-message "start-id must be less than end-id";
+      }
+      must "not(next-id) or ((next-id >= start-id) and (next-id <= end-id + 1))" {
+        error-message "next-id must be between start-id and end-id+1, inclusive";
+      }
+    }
+
+  }
+}

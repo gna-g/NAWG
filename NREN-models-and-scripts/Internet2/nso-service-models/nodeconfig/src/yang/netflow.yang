@@ -1,0 +1,102 @@
+submodule netflow {
+
+  belongs-to nodeconfig {
+    prefix "nodeconfig";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  grouping nodeconfig-netflow-top {
+    list nodeconfig-netflow {
+      tailf:info "INTERNAL - nodeconfig NetFlow";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Device reference";
+        tailf:cli-allow-range;
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint nodeconfig-netflow-servicepoint;
+
+    }
+  }
+
+  grouping netflow-collector {
+    list netflow-collector {
+      tailf:info "Configure a netflow receiver";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Common name of netflow collector, typically hostname";
+        tailf:cli-allow-range;
+        type i2c:safe-string {
+          pattern '[-_a-zA-Z0-9]*';
+          length 2..50;
+        }
+      }
+
+      leaf-list collector-address {
+        tailf:info "List of collector addresses, picked semi-randomly per-node";
+        type inet:ip-address;
+        min-elements 1;
+      }
+      leaf-list collector-port {
+        tailf:info "List of ports, picked semi-randomly per-node";
+        type uint16 {
+          // NB: Range is an IOS-XR limitation
+          range "1024..65535";
+        }
+        min-elements 1;
+      }
+      leaf-list applies-to-role {
+        tailf:info "List of role types to add netflow collector to";
+        type enumeration {
+          enum "core";
+          enum "agg";
+          enum "route-reflector";
+        }
+      }
+      leaf-list applies-to-device {
+        tailf:info "List of individual devices to add netflow collector to";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+      leaf vrf {
+        tailf:info "Source traffic from loopback in these VRFs";
+        type enumeration {
+          enum RE;
+          enum I2PX;
+          enum BLENDED;
+        }
+        mandatory true;
+      }
+      leaf-list traffic-type {
+        type enumeration {
+          enum public;
+          enum private;
+          enum backbone;
+        }
+        // enable the following after deploying netflow split - MR 814
+        // min-elements 1;
+      }
+    }
+  }
+}

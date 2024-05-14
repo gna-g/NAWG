@@ -1,0 +1,430 @@
+submodule sdp-attach {
+
+  belongs-to pdp {
+    prefix "pdp";
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  // internet2 common package
+  import common {
+    prefix i2c;
+  }
+
+  grouping sdp-attach-list {
+    list sdp-attach {
+      tailf:info "INTERNAL - PDP ServiceAttach";
+      tailf:cli-allow-wildcard;
+
+      key "pdp name";
+
+      leaf pdp {
+        tailf:info "PDP to attach to";
+        tailf:cli-allow-range;
+        type leafref {
+          path "/ncs:services/pdp:pdp/pdp:name";
+        }
+      }
+
+      leaf name {
+        tailf:info "Service Attach Name, unique to an PDP";
+        tailf:cli-allow-range;
+        type string {
+          // This string doesn't need to follow a convention, it just needs to
+          // be kept within some assemblance of sanity
+          length "0..100";
+          pattern "[A-Za-z0-9_-]+";
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint sdp-attach-servicepoint;
+
+      leaf admin-state {
+        tailf:info "Admin-state for sub-interface";
+        type enumeration {
+          enum no-config {
+            tailf:info "Prepare sub-interface but do not apply configuration -- typically this is passed through by an upper-level service";
+          }
+          enum in-service {
+            tailf:info "SDP is in-service";
+          }
+          enum down {
+            tailf:info "Shutdown sub-interface; this will only affect the interface when encap=native";
+          }
+        }
+        default in-service;
+      }
+
+      uses i2c:no-monitor-leaf;
+
+      leaf netflow {
+        tailf:info "Enable netflow collection [default disabled]";
+        default disable;
+        type enumeration {
+          enum disable {
+            tailf:info "Disabled [default]";
+          }
+          enum enable-ip {
+            tailf:info "DEPRECATED - Use 'public' instead'; Enable for IPv4 and IPv6 address families";
+          }
+          enum enable-mpls {
+            tailf:info "DEPRECATED - Use 'backbone' instead; Enable for IPv4, IPv6, and MPLS address families";
+          }
+          enum public {
+            tailf:info "Enable for IPv4 and IPv6 address families; send flow to public collector";
+          }
+          enum private {
+            tailf:info "Enable for IPv4 and IPv6 address families; send flow to private collector";
+          }
+          enum backbone {
+            tailf:info "Enable for IPv4, IPv6, and MPLS address families";
+          }
+        }
+      }
+
+      leaf shaping-rate {
+        tailf:info "Traffic egress shaping rate [default no limit], platform support may vary";
+        type enumeration {
+          enum 50 { tailf:info "50 mbps"; }
+          enum 100 { tailf:info "100 mbps"; }
+          enum 200 { tailf:info "200 mbps"; }
+          enum 300 { tailf:info "300 mbps"; }
+          enum 400 { tailf:info "400 mbps"; }
+          enum 500 { tailf:info "500 mbps"; }
+          enum 1000 { tailf:info "1000 mbps"; }
+          enum 2000 { tailf:info "2000 mbps"; }
+          enum 5000 { tailf:info "5000 mbps"; }
+          enum 10000 { tailf:info "10000 mbps"; }
+        }
+      }
+
+      //// Note to other services
+      // These variables are for use by internal services only. If the sdp-attach
+      // is created or modified in the same commit, you cannot rely on this data
+      // being present or correct.
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        container parent {
+          leaf device {
+            tailf:info "Device this is instantiated on";
+            type string;
+          }
+          leaf if-type {
+            tailf:info "Interface type, IE TenGigE";
+            type string;
+          }
+          leaf if-id {
+            tailf:info "Interface ID, IE 0/0/0/1";
+            type string;
+          }
+          leaf if-full {
+            tailf:info "Appropriate concatenation of if-type and if-id";
+            type string;
+          }
+        }
+
+        leaf description {
+          tailf:info "Calculated sub-interface description";
+          type string;
+        }
+      }
+
+      leaf subint-id {
+        tailf:info "Sub-Interface ID, only valid with dot1q / qinq";
+        type uint32 {
+          range "0..99999999"; // This could possibly be larger
+        }
+      }
+      must "not(count(subint-id) = 1 and encapsulation/native)" {
+        error-message "Cannot specify subint-id when using native encapsulation";
+      }
+      must "not(count(subint-id) = 0 and not(encapsulation/native))" {
+        error-message "Must specify subint-id when using non-native encapsulation";
+      }
+
+      uses sdp-attach-encapsulation;
+
+      must "not(subint-id != 0 and encapsulation/default)" {
+        error-message "subint-id must be 0 when encapsulation is 'default'";
+      }
+      must "not(subint-id = 0 and not(encapsulation/default))" {
+        error-message "subint-id 0 is reserved for 'default' encapsulation";
+      }
+      unique "pdp subint-id";
+      // Note: this will not catch when subint-id is blank, that's a remaining
+      // todo, but a much rarer possibility.
+
+      container eos {
+        tailf:info "Arista EOS specific config tweaks";
+        when "starts-with(deref(deref(../pdp:pdp)/../pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'arista-dcs-cli')" {
+          tailf:dependency "../pdp:pdp";
+        }
+
+        leaf device-internal-vlan {
+          tailf:info "Arista EOS per device global vlan";
+          type uint16 {
+            range "2..4050";
+          }
+        }
+      }
+
+      choice layer2or3 {
+        mandatory true;
+
+        container layer2 {
+          tailf:info "Layer2 service parameters";
+          presence "layer2";
+
+          // No subint parameters for layer2 at the moment.
+          leaf rewrite-ingress {
+            tailf:info "Adds `rewrite ingress tag pop 1 symmetric`, only valid for dot1q";
+            type boolean;
+            default false;
+          }
+          must "../encapsulation != 'dot1q' or rewrite-ingress = 'false'" {
+            error-message "layer2/rewrite-ingress only valid on dot1q sub-interfaces";
+          }
+        }
+
+        container layer3 {
+          tailf:info "Layer3 service parameters";
+          presence "layer2";
+
+          uses sdp-attach-layer3-address;
+          uses sdp-attach-layer3-ra;
+          uses sdp-attach-layer3-vrf;
+          uses sdp-attach-layer3-mtu;
+          uses sdp-attach-layer3-acl;
+          uses sdp-attach-layer3-urpf;
+
+          container vars {
+            tailf:info "Processed layer3 config from Python";
+            config false;
+            uses sdp-attach-layer3-vars;
+          }
+        }
+      }
+
+      must "not(layer3 and encapsulation = 'default')" {
+        error-message "encapsulation 'default' and layer3 config are mutually exclusive";
+      }
+
+      // When forced by a higher-level service
+      leaf description-auto {
+        tailf:info "Description provided by the higher-level service";
+        tailf:hidden "full";
+        type i2c:safe-string {
+          length "0..100";
+        }
+      }
+    }
+  }
+
+  grouping sdp-attach-layer3-vrf {
+    leaf vrf {
+      tailf:info "VRF for Layer3 services, this will not automatically create the VRF";
+      type string {
+        pattern "[A-Za-z][A-Za-z0-9_-]*";
+      }
+      mandatory true;
+    }
+  }
+
+  grouping sdp-attach-layer3-address {
+    list ipv4-address {
+      tailf:info "IPv4 address - NOTE address is primary, list can be re-ordered";
+      key address;
+      leaf address {
+        type tailf:ipv4-address-and-prefix-length;
+      }
+      ordered-by user;
+    }
+
+    list ipv6-address {
+      tailf:info "IPv6 addresses";
+      key address;
+      leaf address {
+        type tailf:ipv6-address-and-prefix-length;
+      }
+    }
+  }
+
+  grouping sdp-attach-layer3-ra {
+    leaf ipv6-ra {
+      tailf:info "IPv6 - advertise or suppress router advertisements [default advertise]";
+      default "advertise";
+      type enumeration {
+        enum "advertise";
+        enum "suppress";
+      }
+
+      // This should eventually be changed to `suppress`, but needs to be done in a
+      // controlled fashion to avoid creating massive changes.
+      // See the discussion in issue #125
+      // https://gitlab.support.nsiss.internet2.edu/internet2/nso-arroyo/-/issues/125#note_13425
+    }
+  }
+
+  grouping sdp-attach-layer3-mtu {
+    leaf service-mtu {
+      tailf:info "MTU for all address families enabled (default = interface max)";
+      type uint16 {
+        range "1280..9600";
+      }
+    }
+  }
+
+  typedef acl-name {
+    type string {
+      pattern "[-_a-zA-Z0-9]+";
+    }
+  }
+
+  grouping sdp-attach-layer3-acl {
+    leaf ipv4-acl-ingress {
+      tailf:info "IPv4 Ingress ACL";
+      type acl-name;
+    }
+    leaf ipv4-acl-egress {
+      tailf:info "IPv4 Egress ACL";
+      type acl-name;
+    }
+    leaf ipv6-acl-ingress {
+      tailf:info "IPv6 Ingress ACL";
+      type acl-name;
+    }
+    leaf ipv6-acl-egress {
+      tailf:info "IPv6 Egress ACL";
+      type acl-name;
+    }
+  }
+
+  grouping sdp-attach-layer3-urpf {
+    leaf urpf {
+      tailf:info "URPF Anti-spoofing filter";
+      type enumeration {
+        enum disable {
+          tailf:info "Disable URPF filtering [default]";
+        }
+        enum strict {
+          tailf:info "Best-path on this interface";
+        }
+        enum pseudo-strict {
+          tailf:info "Generate an interface ACL only allowing connected routes";
+        }
+        // enum feasible {
+        //   tailf:info "Any route advertised by this peer";
+        // }
+        // enum enhanced-feasible {
+        //   tailf:info "Any route advertised by this ASN";
+        // }
+        // enum loose {
+        //   tailf:info "Any route in this VRF";
+        // }
+      }
+      default disable;
+    }
+  }
+
+  grouping sdp-attach-layer3-vars {
+    list ipv4-address {
+      key "ip";
+      ordered-by user;
+
+      leaf ip {
+        type inet:ipv4-address;
+      }
+      leaf network-address {
+        type inet:ipv4-address;
+      }
+      leaf mask {
+        type inet:ipv4-address;
+      }
+      leaf prefixlen {
+        type uint8 {
+          range "0..32";
+        }
+      }
+      leaf primary {
+        tailf:info "Mark as primary IPv4 address";
+        type boolean;
+      }
+    }
+
+    list ipv6-address {
+      key "ip";
+      leaf ip {
+        type inet:ipv6-address;
+      }
+      leaf network-address {
+        type inet:ipv6-address;
+      }
+      leaf prefixlen {
+        type uint8 {
+          range "0..128";
+        }
+      }
+    }
+
+    // Used when when URPF strict isn't allowable
+    leaf pseudo-urpf-acl-name {
+      type string;
+    }
+  }
+
+  grouping sdp-attach-encapsulation {
+    container encapsulation {
+      choice type {
+        mandatory true;
+
+        container native {
+          presence "native";
+        }
+
+        container default {
+          presence "default";
+        }
+
+        container dot1q {
+          presence "dot1q";
+          leaf vlan-id {
+            type uint16 {
+              range "1..4094";
+            }
+            mandatory true;
+          }
+        }
+
+        container qinq {
+          presence "qinq";
+          leaf outer {
+            type uint16 {
+              range "1..4094";
+            }
+            mandatory true;
+          }
+
+          leaf inner {
+            type uint16 {
+              range "1..4094";
+            }
+            mandatory true;
+          }
+        }
+      }
+    }
+  }
+}

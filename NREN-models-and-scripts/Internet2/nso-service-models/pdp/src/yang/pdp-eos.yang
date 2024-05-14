@@ -1,0 +1,64 @@
+module pdp-eos {
+
+  namespace "https://internet2.edu/yang/pdp-eos";
+  prefix pdp-eos;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import tailf-ned-arista-dcs {
+    prefix eos;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  // internet2 common package
+  import pdp {
+    prefix pdp;
+  }
+
+  description
+   "Arista EOS specific bits for PDP";
+
+  // Augment PDP with some arista specific components.
+  augment /ncs:services/pdp:pdp {
+    uses eos;
+  }
+
+  // Arista EOS specific PDP config
+  grouping eos {
+    container eos {
+      tailf:info "Arista EOS interfaces";
+
+      when "starts-with(deref(../pdp:device)/../ncs:device-type/ncs:cli/ncs:ned-id, 'arista-dcs-cli')" {
+        tailf:dependency "../pdp:device";
+      }
+      must "not(count(interface/id) > 1 and count(../pdp:lag-id) = 0)" {
+        error-message
+         "lag-id must be set when more than one interface is specified";
+        tailf:dependency "interface/id";
+        tailf:dependency "../pdp:lag-id";
+      }
+      must "count(interface/id) >= 1" {
+        error-message
+         "At least one interface must be selected in a PDP";
+        tailf:dependency "interface/id";
+      }
+
+      list interface {
+        key "id";
+        tailf:info "Interface ID";
+        leaf id {
+          type leafref {
+            path "deref(../../../pdp:device)/../ncs:config/eos:interface/eos:Ethernet/eos:name";
+          }
+        }
+        uses pdp:interface-fields;
+      }
+    }
+  }
+}

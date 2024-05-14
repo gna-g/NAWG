@@ -1,0 +1,124 @@
+module legacy-interconnect {
+
+  namespace "http://internet2.edu/yang/legacy-interconnect";
+  prefix legacy-ic;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import pdp {
+    prefix i2-pdp;
+  }
+  import common {
+    prefix i2c;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  description "Arroyo legacy-interconnect service";
+
+  augment /ncs:services {
+    uses legacy-interconnect-list;
+  }
+
+  grouping legacy-interconnect-list {
+    list legacy-interconnect {
+      tailf:info "Internet2 legacy-interconnect service";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "legacy-interconnect name [POP1-POP2-NN]";
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint legacy-interconnect-servicepoint;
+
+      leaf pdp {
+        tailf:info "Internet2 Physical Delivery Point - legacy-interconnect service must define exactly 1 PDP.";
+        type leafref {
+            path "/ncs:services/i2-pdp:pdp/i2-pdp:name";
+        }
+        must "deref(.)/../i2-pdp:role = 'backbone'" {
+          error-message "PDP role must be set to backbone";
+          tailf:dependency ".";
+        }
+      }
+
+      leaf isis-v4 {
+        tailf:info "ISIS IPv4 prefix";
+        type tailf:ipv4-address-and-prefix-length;
+      }
+      leaf isis-v6 {
+        tailf:info "ISIS IPv6 prefix";
+        type tailf:ipv6-address-and-prefix-length;
+      }
+      leaf bgp-v4 {
+        tailf:info "BGP IPv4 prefix";
+        type tailf:ipv4-address-and-prefix-length;
+      }
+      leaf bgp-v6 {
+        tailf:info "BGP IPv6 prefix";
+        type tailf:ipv6-address-and-prefix-length;
+      }
+
+      leaf admin-state {
+        tailf:info "Admin-state for legacy-interconnect";
+        type enumeration {
+          enum no-config {
+            tailf:info "Input parameters into NSO, allocate IPs, but do not apply configuration to a device";
+          }
+          enum in-service {
+            tailf:info "Service is in active-use";
+          }
+          enum pre-maintenance {
+            tailf:info "Raise ISIS metric to max (16777214) for this legacy-interconnect service instance";
+          }
+          enum maintenance {
+            tailf:info "Disables ISIS for this legacy-interconnect service instance, leaves interface up";
+          }
+        }
+        mandatory true;
+      }
+
+      leaf metric-override {
+        tailf:info "Set a metric for this interconnect [default is 50000]";
+        type uint32 {
+          range "1..16777214";
+        }
+        default 50000;
+      }
+
+      // leaf circuit-id {
+      //   tailf:info "VLAN Circuit ID for sub-interface";
+      //   type i2c:circuit-id-with-allocate;
+      // }
+
+      uses i2c:metadata;
+
+      container vars {
+        config false;
+        tailf:info "Processed config from Python";
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+        leaf bgp-v4-remote {
+          tailf:info "IPv4 address";
+          type inet:ipv4-address {
+          }
+        }
+        leaf if-full {
+            tailf:info "PDP interface name";
+            type string;
+        }
+      }
+
+    }
+  }
+}

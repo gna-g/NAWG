@@ -1,0 +1,216 @@
+module sip {
+
+  namespace "https://internet2.edu/yang/sip";
+  prefix sip;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+  import peer-config {
+    prefix peer-config;
+  }
+  import routing-config {
+    prefix routing-config;
+  }
+
+  augment /ncs:services {
+    uses sip-provider-clearspan-public-top;
+    uses sip-provider-clearspan-dci-top;
+    uses sip-provider-trunk-top;
+    uses sip-subscriber-top;
+  }
+
+  grouping sip-provider-clearspan-public-top {
+    list sip-provider-clearspan-public {
+      tailf:info "Clearspan public service, used for application servers, voicemail servers, etc";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint sip-provider-clearspan-public-servicepoint;
+
+      uses peer-config:intf-config {
+        refine override-mtu {
+          tailf:info "Override the MTU [default 1500]";
+        }
+      }
+
+      uses peer-config:admin-state;
+
+      uses i2c:service-id-leaf;
+      uses i2c:entity-leaf;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+      uses i2c:description-extra-leaf;
+
+      must "entity = 'CLEARSPAN'" {
+        error-message "The only provider supported today is CLEARSPAN";
+      }
+
+      leaf access-control-list {
+        tailf:info "IP ACL to enable on interface [default none]";
+        type enumeration {
+          enum acl-sip-appserver {
+            tailf:info "ACL-SIP-APPSERV-[INGRESS/EGRESS]-[V4/V6]";
+          }
+        }
+      }
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+        leaf-list network-ipv4 {
+          tailf:info "BGP network statement";
+          type inet:ipv4-prefix;
+        }
+        leaf-list network-ipv6 {
+          tailf:info "BGP network statement";
+          type inet:ipv6-prefix;
+        }
+      }
+    }
+  }
+
+  grouping sip-provider-clearspan-dci-top {
+    list sip-provider-clearspan-dci {
+      tailf:info "Clearspan private DCI";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint sip-provider-clearspan-dci-servicepoint;
+
+      uses peer-config:intf-config {
+        refine override-mtu {
+          tailf:info "Override the MTU [default 1500]";
+        }
+      }
+
+      uses peer-config:admin-state;
+
+      uses i2c:service-id-leaf;
+      uses i2c:entity-leaf;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+      uses i2c:description-extra-leaf;
+
+      // vars required for routing-config
+      uses routing-config:vars;
+
+      must "entity = 'CLEARSPAN'" {
+        error-message "The only provider supported today is CLEARSPAN";
+      }
+    }
+  }
+
+  grouping sip-provider-trunk-top {
+    list sip-provider-trunk {
+      tailf:info "Peering for SIP TRUNK service, typically peered with AS1";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint sip-provider-trunk-servicepoint;
+
+      uses peer-config:intf-config {
+        refine override-mtu {
+          tailf:info "Override the MTU [default 1500]";
+        }
+      }
+
+      uses peer-config:admin-state;
+
+      uses i2c:service-id-leaf;
+      uses i2c:entity-leaf;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+      uses i2c:description-extra-leaf;
+
+      uses peer-config:neighbor-config {
+        // refine maximum-prefix-ipv4 {
+        //   tailf:info "Maximum accepted prefixes accepted for IPv4 [default 600]";
+        //   default 600;
+        // }
+      }
+
+      uses peer-config:policy-exceptions;
+
+      uses i2c:rejected-routes-action;
+
+      must "entity = 'LUMEN'" {
+        error-message "The only provider supported today is LUMEN";
+      }
+    }
+  }
+
+  grouping sip-subscriber-top {
+    list sip-subscriber {
+      tailf:info "Declare an entity as a SIP subscriber";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint sip-subscriber-servicepoint;
+
+      uses i2c:entity-leaf {
+        refine entity {
+          tailf:info "Subscriber to the SIP service";
+        }
+      }
+
+      leaf provider {
+        tailf:info "Provider of the SIP service";
+        type leafref {
+          path "/i2c:infrastructure/i2c:entity/i2c:name";
+        }
+      }
+
+      list prefix {
+        tailf:info "Specific prefixes to advertise to the SIP trunk provider";
+        key prefix;
+        leaf prefix {
+          type inet:ip-prefix;
+        }
+      }
+
+      must "provider = 'CLEARSPAN'" {
+        error-message "The only provider supported today is CLEARSPAN";
+      }
+    }
+  }
+
+}

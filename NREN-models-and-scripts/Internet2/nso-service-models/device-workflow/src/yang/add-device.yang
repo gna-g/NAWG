@@ -1,0 +1,82 @@
+submodule add-device {
+  belongs-to device-workflow {
+    prefix "device-workflow";
+  }
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  import nodeconfig {
+    prefix nodeconfig;
+  }
+
+  grouping add-device-action {
+    tailf:action add-device {
+      tailf:info "Add device to NSO, fetch SSH keys, sync config, configure nodeconfig";
+      tailf:actionpoint add-device-action;
+      input {
+        uses nodeconfig:nodeconfig-attributes;
+        leaf role-instance {
+          tailf:info "Role instance number from GlobalNOC DB";
+          type uint8 {
+            range "1..10";
+          }
+          mandatory true;
+        }
+        leaf address{
+          tailf:info "IP address or host name for the management interface";
+          type inet:host;
+          mandatory true;
+        }
+        leaf device-type {
+          tailf:info "Type of device";
+          type leafref {
+            path "/ncs:devices/ncs:ned-ids/ncs:ned-id/ncs:id";
+          }
+          mandatory true;
+        }
+        leaf authgroup {
+          tailf:info "Authentication credentials for the device";
+          type leafref {
+            path "/ncs:devices/ncs:authgroups/ncs:group/ncs:name";
+          }
+          mandatory true;
+        }
+      }
+      output {
+        // Provide output for each step of the process
+        list step {
+          key step-name;
+          // name of the workflow step
+          leaf step-name {
+            type string;
+          }
+          // Some extra information
+          leaf message {
+            type string;
+          }
+          // Success/Fail status
+          leaf result {
+            type enumeration {
+              enum success;
+              enum fail;
+              enum skip;
+            }
+          }
+        }
+
+        // Whether the whole workflow succeeded overall
+        leaf result-message {
+          type string;
+        }
+      }
+    }
+  }
+}

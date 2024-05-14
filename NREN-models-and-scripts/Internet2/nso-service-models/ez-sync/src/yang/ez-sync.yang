@@ -1,0 +1,87 @@
+module ez-sync {
+
+  namespace "https://internet2.edu/yang/ez-sync";
+  prefix ez-sync;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  augment /ncs:devices {
+    uses ez-sync-top;
+  }
+
+  // Top-level service
+  grouping ez-sync-top {
+    tailf:action ez-sync {
+      tailf:actionpoint ez-sync-actionpoint;
+      tailf:info "Re-Sync devices";
+      input {
+        leaf skip-check-sync {
+          tailf:info "Skip running 'devices check-sync' and only sync known-out-of-sync devices";
+          type empty;
+        }
+        leaf skip-dry-run {
+          tailf:info "Skip running or displaying 'devices sync-from'";
+          type empty;
+        }
+        leaf debug {
+          tailf:info "Debug output";
+          type empty;
+        }
+        container email-report {
+          tailf:info "Send report via eamil";
+          presence "";
+          leaf-list recipients {
+            tailf:info "List of email recipients";
+            type string;
+          }
+        }
+      }
+      output {
+        list device {
+          tailf:info "Output for a given device";
+          key name;
+          leaf name {
+            type string;
+          }
+          container check-sync {
+            leaf result {
+              type string;
+            }
+          }
+          container sync-from {
+            leaf dry-run {
+              tailf:info "Output of 'sync-from dry-run'";
+              type string;
+            }
+            leaf result {
+              tailf:info "Status report from sync-form";
+              type string;
+            }
+          }
+        }
+        container email-report {
+          leaf result {
+            type string;
+          }
+          leaf message-id {
+            type string;
+          }
+        }
+        list debug {
+          leaf message {
+            type string;
+          }
+        }
+      }
+    }
+  }
+
+}

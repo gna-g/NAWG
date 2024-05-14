@@ -1,0 +1,81 @@
+module blended {
+
+  namespace "https://internet2.edu/yang/blended";
+  prefix blended;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+  import peer-config {
+    prefix peer-config;
+  }
+  import routing-config {
+    prefix routing-config;
+  }
+
+  augment /ncs:services {
+    uses blended-cust-top;
+  }
+
+  grouping blended-cust-top {
+    list blended-cust {
+      tailf:info "BLENDED BGP Neighbor";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint blended-cust-servicepoint;
+
+      uses peer-config:intf-config {
+        refine override-mtu {
+          tailf:info "Override the MTU [default 1500]";
+        }
+      }
+
+      uses peer-config:admin-state;
+
+      // Documentation leafs
+      uses i2c:service-id-leaf;
+      uses i2c:entity-leaf;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+      uses i2c:description-extra-leaf;
+
+      // Peer config
+      uses peer-config:neighbor-config;
+      uses i2c:rejected-routes-action;
+      uses peer-config:policy-exceptions;
+
+      container select-in {
+        uses peer-config:match-DISABLE-PRIVATE-ASN-CHECK;
+        uses peer-config:match-PREFIX;
+      }
+
+      container select-out {
+        tailf:info "Define routes that are sent to peer";
+        uses peer-config:originate-DEFAULT;
+        uses peer-config:send-FULLTABLE;
+        uses peer-config:send-RE;
+        uses peer-config:send-I2PX;
+        must "not(send-fulltable and (send-re or send-i2px))" {
+          error-message "send-i2px/send-re is not needed, send-fulltable includes these routes";
+        }
+      }
+    }
+  }
+}

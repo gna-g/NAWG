@@ -1,0 +1,45 @@
+submodule telemetry {
+
+    belongs-to nodeconfig {
+        prefix "nodeconfig";
+    }
+
+    import tailf-common {
+        prefix tailf;
+    }
+    import tailf-ncs {
+        prefix ncs;
+    }
+
+    grouping nodeconfig-telemetry-top {
+        list nodeconfig-telemetry {
+            tailf:info "INTERNAL - nodeconfig telemetry";
+            tailf:cli-allow-wildcard;
+
+            key name;
+            leaf name {
+                tailf:info "Device reference";
+                tailf:cli-allow-range;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            leaf management {
+                tailf:info "Determines where management traffic is sourced from and should be destined to; defaults to in-band";
+                default in-band;
+                type enumeration {
+                    enum in-band {
+                        tailf:info "Use in-band management (Loopback0)";
+                    }
+                    enum smn {
+                        tailf:info "Use SMN management (MgmtEth0)";
+                    }
+                }
+            }   
+            uses ncs:service-data;
+            ncs:servicepoint nodeconfig-telemetry-servicepoint;
+
+        }
+    }
+}

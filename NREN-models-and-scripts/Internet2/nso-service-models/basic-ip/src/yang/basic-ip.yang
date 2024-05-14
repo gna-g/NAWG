@@ -1,0 +1,253 @@
+module basic-ip {
+
+  namespace "http://internet2.edu/yang/basic-ip";
+  prefix basic-ip;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import pdp {
+    prefix pdp;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  description "Basic Layer 3 IP services";
+
+  augment /ncs:services {
+    uses basic-ip-pas-top;
+    uses basic-ip-osg-top;
+    uses basic-ip-generic-top {
+      // ALPHA - remove when ready for prod
+      refine basic-ip-generic {
+        tailf:hidden "full";
+      }
+    }
+  }
+
+  grouping basic-ip-pas-top {
+    list basic-ip-pas {
+      tailf:info "Layer3 PAS Interface";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Unique service name";
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint basic-ip-pas-servicepoint;
+
+      uses basic-ip-PDP;
+      uses basic-ip-STATE;
+
+      leaf type {
+        tailf:info "Connection type, affects VRF and address pool selection";
+        type enumeration {
+          enum PAS-Management {
+            tailf:info "Perfsonar management, RE VRF, PAS-Mgmt-v4/6 pool, vlan 7";
+          }
+          enum PAS-Internal {
+            tailf:info "Perfsonar internal, RE VRF, PAS-External-v4/6 pool, vlan 8";
+          }
+          enum PAS-External {
+            tailf:info "Perfsonar external, blended VRF, PAS-External-v4/6 pool, vlan 9";
+          }
+        }
+        mandatory true;
+      }
+
+      leaf pas-host {
+        tailf:info "DNS name of physical pas node [pas.pop]";
+        type i2c:safe-string {
+          length "1..100";
+        }
+        mandatory true;
+      }
+
+      leaf pas-nic {
+        tailf:info "NIC name on the pas-host [example: ens3f1]";
+        type i2c:safe-string {
+          length "1..100";
+        }
+      }
+
+      leaf pas-servicename {
+        tailf:info "DNS name of the PAS service being provided [pas-coreN.pop, pas-aggN.pop, perfsonar.pop]";
+        type i2c:safe-string {
+          length "1..100";
+        }
+        mandatory true;
+        when "../type != 'PAS-Management'";
+      }
+
+      uses basic-ip-ADDRESS;
+      uses basic-ip-VARS;
+    }
+  }
+
+  grouping basic-ip-osg-top {
+    list basic-ip-osg {
+      tailf:info "Layer3 OSG Service";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Unique service name";
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint basic-ip-osg-servicepoint;
+
+      uses basic-ip-PDP;
+      uses basic-ip-STATE;
+      uses basic-ip-ADDRESS;
+
+      leaf osg-hostname {
+        tailf:info "Name of OSG node";
+        type string {
+          length "1..100";
+          pattern "[-.a-zA-Z0-9]+";
+        }
+        mandatory true;
+      }
+
+      uses basic-ip-VARS;
+
+    }
+  }
+
+  grouping basic-ip-generic-top {
+    list basic-ip-generic {
+      tailf:info "Layer 3 IP Service";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Unique service ID";
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint basic-ip-generic-servicepoint;
+
+      uses basic-ip-PDP;
+      uses basic-ip-VRF;
+      uses basic-ip-STATE;
+      uses basic-ip-VLAN;
+      uses basic-ip-ALLOCATION-SIZE;
+      uses basic-ip-ADDRESS;
+    }
+  }
+
+  // Re-usable-chunks
+  grouping basic-ip-PDP {
+    leaf pdp {
+      tailf:info "Service edge PDP";
+      type leafref {
+        path "/ncs:services/pdp:pdp/pdp:name";
+      }
+      mandatory true;
+    }
+  }
+
+  grouping basic-ip-VLAN {
+    leaf vlan {
+      tailf:info "Service VLAN, default is no encapsulation";
+      type uint16 {
+        range "1..4095";
+      }
+    }
+  }
+
+  grouping basic-ip-VRF {
+    leaf vrf {
+      type enumeration {
+        enum RE;
+        enum i2px;
+        enum blended;
+      }
+      mandatory true;
+    }
+  }
+
+  grouping basic-ip-ALLOCATION-SIZE {
+    leaf ipv4-allocation-size {
+      tailf:info "IPv4 allocation size, default is /31";
+      type uint8 {
+        range "21..31";
+      }
+      default 31;
+    }
+    leaf ipv6-allocation-size {
+      tailf:info "IPv6 allocation size, default is /127";
+      type uint8 {
+        range "48..127";
+      }
+      default 127;
+    }
+  }
+
+  grouping basic-ip-ADDRESS {
+    leaf ipv4-address {
+      tailf:info "IPv4 address and prefix, default is to auto-allocate an address";
+      type tailf:ipv4-address-and-prefix-length;
+    }
+
+    leaf ipv6-address {
+      tailf:info "IPv6 address and prefix, default is to auto-allocate an address";
+      type tailf:ipv6-address-and-prefix-length;
+    }
+  }
+
+  grouping basic-ip-STATE {
+    leaf admin-state {
+      tailf:info "Admin-state of service";
+      type enumeration {
+        enum no-config {
+          tailf:info "Input parameters into NSO, allocate addressing, but do not apply configuration to a device";
+        }
+        enum down {
+          tailf:info "Keep service configured on network, but shut sub-interface down";
+        }
+        enum in-service {
+          tailf:info "Service is in active-use";
+        }
+      }
+      mandatory true;
+    }
+  }
+
+  grouping basic-ip-VARS {
+    container vars {
+      config false;
+      tailf:cdb-oper {
+        tailf:persistent true;
+      }
+      leaf vlan {
+        type uint16;
+      }
+      leaf vrf {
+        type string;
+      }
+      leaf ipv4-address {
+        type string;
+      }
+      leaf ipv6-address {
+        type string;
+      }
+      leaf description {
+        type string;
+      }
+    }
+  }
+}

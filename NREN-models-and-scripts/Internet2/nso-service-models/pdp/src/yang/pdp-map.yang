@@ -1,0 +1,52 @@
+submodule pdp-map {
+
+  belongs-to pdp {
+    prefix "pdp";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  grouping pdp-map {
+    container pdp-map {
+      tailf:info "Provide a mapping table from Interface name to PDP name";
+      tailf:hidden "full";
+
+      list device {
+        key name;
+
+        leaf name {
+          tailf:info "All PDPs for a device";
+          type leafref {
+            path "/ncs:devices/ncs:device/ncs:name";
+          }
+        }
+
+        uses pdp-map-interfaces;
+      }
+    }
+  }
+
+  grouping pdp-map-interfaces {
+    list interface {
+      key if-full;
+
+      leaf if-full {
+        tailf:info "Full interface name";
+        type string;
+      }
+
+      leaf pdp {
+        tailf:info "PDP that owns this interface";
+        type leafref {
+          path "/ncs:services/pdp:pdp/pdp:name";
+        }
+      }
+    }
+  }
+
+}

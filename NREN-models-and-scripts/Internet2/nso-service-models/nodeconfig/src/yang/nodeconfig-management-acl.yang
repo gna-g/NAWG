@@ -1,0 +1,88 @@
+submodule nodeconfig-management-acl {
+
+  belongs-to nodeconfig {
+    prefix "nodeconfig";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import ietf-inet-types {
+    prefix inet;
+  }
+
+  grouping address-list {
+    leaf-list entries-ipv4 {
+      type union {
+        type inet:ipv4-address;
+        type tailf:ipv4-address-and-prefix-length;
+      }
+    }
+    leaf-list entries-ipv6 {
+      type union {
+        type inet:ipv6-address;
+        type tailf:ipv6-address-and-prefix-length;
+      }
+    }
+  }
+
+  grouping nodeconfig-management-acl-top {
+    list nodeconfig-management-acl {
+      tailf:info "Configure management ACLs for a given node";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Node to apply to";
+        tailf:cli-allow-range;
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint nodeconfig-management-acl-servicepoint;
+
+      container ios-xr {
+        list interface {
+          tailf:info "List of IOS-XR interfaces to apply to, populated by backbone service";
+          tailf:cli-allow-wildcard;
+          key name;
+
+          leaf name {
+            tailf:cli-allow-range;
+            type string;
+          }
+        }
+      }
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        container LOGIN-HOST {
+          tailf:info "Entry in SSH-V4/V6 ip access-list AND control-plane ssh";
+          uses address-list;
+        }
+        container SNMP-GLOBALNOC {
+          tailf:info "Entry in SNMP-GLOBALNOC-V4/V6 ip access-list";
+          uses address-list;
+        }
+        container SNMP-DEEPFIELD {
+          tailf:info "Entry in SNMP-DEEPFIELD-V4/V6 ip access-list";
+          uses address-list;
+        }
+        container NTP {
+          tailf:info "Entry in NTP-V4/V6 ip access-list";
+          uses address-list;
+        }
+
+      }
+    }
+  }
+}

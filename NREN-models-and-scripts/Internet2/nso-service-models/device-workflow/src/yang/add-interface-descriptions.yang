@@ -1,0 +1,50 @@
+submodule add-interface-descriptions {
+  belongs-to device-workflow {
+    prefix "device-workflow";
+  }
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+
+  grouping add-interface-descriptions-action {
+    tailf:action add-interface-descriptions {
+      tailf:info "Add a description to all interfaces that do not have one";
+      tailf:actionpoint add-interface-descriptions;
+      input {
+        leaf device {
+          tailf:info "Device to label descriptions";
+          type leafref {
+            path "/ncs:devices/ncs:device/ncs:name";
+          }
+        }
+        leaf description {
+          tailf:info "Description to use - default 'AVAILABLE | [NO-MONITOR]'";
+          type string;
+          default "AVAILABLE | [NO-MONITOR]";
+        }
+        container dry-run {
+          tailf:info "Show what would be done, but don't do anything";
+          presence "";
+        }
+      }
+      output {
+        leaf result-message {
+          type string;
+        }
+        list modified-interfaces {
+          key name;
+          leaf name {
+            type string;
+          }
+          leaf description {
+            type string;
+          }
+        }
+      }
+    }
+  }
+}

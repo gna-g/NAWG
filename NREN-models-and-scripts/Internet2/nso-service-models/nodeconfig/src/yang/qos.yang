@@ -1,0 +1,35 @@
+submodule qos {
+
+    belongs-to nodeconfig {
+        prefix "nodeconfig";
+    }
+
+    import tailf-common {
+      prefix tailf;
+    }
+    import tailf-ncs {
+      prefix ncs;
+    }
+
+    grouping nodeconfig-qos-top {
+        list nodeconfig-qos {
+            tailf:info "INTERNAL - nodeconfig QoS";
+            tailf:cli-allow-wildcard;
+
+            key name;
+            leaf name {
+                tailf:info "Device reference";
+                tailf:cli-allow-range;
+                type leafref {
+                    path "/ncs:devices/ncs:device/ncs:name";
+                }
+            }
+
+            uses ncs:service-data;
+            ncs:servicepoint nodeconfig-qos-servicepoint;
+
+        }
+    }
+
+
+}

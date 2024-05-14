@@ -1,0 +1,271 @@
+module i2px {
+
+  namespace "https://internet2.edu/yang/i2px";
+  prefix i2px;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+  import peer-config {
+    prefix peer-config;
+  }
+  import prefix-set {
+    prefix prefix-set;
+  }
+
+  augment /ncs:services {
+    uses i2px-peer-top;
+    uses i2px-cust-top;
+    uses i2px-ixp-top;
+  }
+
+  // Top-level services
+  grouping i2px-peer-top {
+    list i2px-peer {
+      tailf:info "i2px-peer - Non-participant connections";
+      tailf:cli-allow-wildcard;
+      key name;
+      leaf name {
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint i2px-peer-servicepoint;
+
+      uses i2px-private;
+      uses peer-config:admin-state;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+
+      // intf-or-ixp
+      uses intf-or-ixp;
+
+      uses peer-config:neighbor-config;
+      must "count(neighbor)>0" {
+        error-message "Must define at least one IPv4 or IPv6 neighbor";
+      }
+
+      uses i2c:service-id-leaf;
+      uses i2c:entity-leaf;
+      uses description-extra-leaf;
+
+      container select-out-extra {
+        tailf:info "EXPERT USE ONLY - Specify routes beyond the standard policy that will be advertised";
+        uses peer-config:match-PREFIX;
+        uses peer-config:match-ASPATH;
+        uses peer-config:match-XRCOND;
+      }
+
+      uses peer-config:policy-exceptions;
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        uses peer-config:vars-sdp;
+        uses peer-config:vars-neighbor;
+      }
+      uses i2c:rejected-routes-action;
+      uses i2c:route-report-action;
+    }
+  }
+
+  grouping i2px-cust-top {
+    list i2px-cust {
+      tailf:info "i2px-cust - I2PX Peering for customer/members/participants";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint i2px-cust-servicepoint;
+      uses i2px-private;
+      uses peer-config:admin-state;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+
+      uses i2c:service-id-leaf;
+      uses i2c:entity-leaf;
+      uses description-extra-leaf;
+
+      // Interface-or-ixp
+      uses intf-or-ixp;
+      uses peer-config:multihop;
+      // Require static route when multihop/ttl is set
+      must "(not(multihop/ttl) or (multihop/static-route-ipv4) or (multihop/static-route-ipv6)) and ((multihop/ttl) or not(multihop/static-route-ipv4) or not(multihop/static-route-ipv6))" {
+        error-message "When using eBGP multihop, both TTL and a static route must be defined";
+      }
+      must "(not(multihop/ttl) or (count(multihop/static-route-ipv4) < 2) and (count(multihop/static-route-ipv6) < 2))" {
+        error-message "Must define only one static route for IPv4 and/or IPv6";
+      }
+
+      uses peer-config:neighbor-config;
+      must "count(neighbor)>0" {
+        error-message "Must define at least one IPv4 or IPv6 neighbor";
+      }
+
+      container select-in {
+        tailf:info "Specify routes that will be accepted, default accepts nothing";
+        uses peer-config:match-DISABLE-PRIVATE-ASN-CHECK;
+        uses peer-config:match-PREFIX;
+      }
+      container select-out-extra {
+        tailf:info "EXPERT USE ONLY - Specify routes beyond the standard policy that will be advertised";
+        uses peer-config:match-PREFIX;
+        uses peer-config:match-ASPATH;
+        uses peer-config:match-XRCOND;
+      }
+      uses peer-config:policy-exceptions;
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        uses peer-config:vars-sdp;
+        uses peer-config:vars-neighbor;
+      }
+      uses i2c:rejected-routes-action;
+      uses i2c:route-report-action;
+    }
+  }
+
+  grouping i2px-ixp-top {
+    list i2px-ixp {
+      tailf:info "i2px-ixp - peering exchange network";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint i2px-ixp-servicepoint;
+
+      uses peer-config:admin-state;
+
+      uses i2c:entity-leaf;
+      uses description-extra-leaf {
+        refine description-extra {
+          tailf:info "Extra information for sub-interface, does not affect services on-top of IXP";
+        }
+      }
+
+      uses peer-config:intf-config {
+        refine override-mtu {
+          tailf:info "Override the MTU [default 1500]";
+        }
+      }
+      // this will eventually be integrated into intf-config
+      uses peer-config:intf-config-ipv6-ra {
+        refine ipv6-ra {
+          default suppress;
+          tailf:info "IPv6 Router Advertisements [default suppress]";
+        }
+      }
+
+      must "count(address-ipv4) > 0 or count(address-ipv6) > 0" {
+        error-message "Must define at least one IPv4 or IPv6 address";
+      }
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+
+        uses peer-config:vars-sdp;
+      }
+    }
+  }
+
+  grouping i2px-private {
+    container i2px-private {
+      tailf:hidden "i2px-private";
+      leaf re-deploy-counter {
+        type uint32;
+        tailf:info "Used internally to trigger a re-deploy when an i2px-ixp changes";
+        default 0;
+      }
+    }
+  }
+
+  grouping description-extra-leaf {
+    leaf description-extra {
+      tailf:info "Extra information for bgp/sub-interface description, use as a last resort";
+      type i2c:safe-string;
+    }
+  }
+
+  grouping intf-or-ixp {
+    uses peer-config:intf-config-OPTIONAL {
+      refine override-mtu {
+        tailf:info "Override the MTU [default 1500]";
+      }
+    }
+
+    leaf i2px-ixp {
+      tailf:info "Set up peer on an IXP";
+      type leafref {
+        path "/ncs:services/i2px:i2px-ixp/i2px:name";
+      }
+    }
+
+    container CONSTRAINTS {
+      tailf:info "This is an empty container that's used because grouping/uses has syntax limitaitons";
+      tailf:hidden "full";
+
+      // Constraints - require PDP or the interface
+      must "../i2px-ixp or ../pdp" {
+        error-message "Must set either i2px-ixp or pdp";
+      }
+      must "not(../i2px-ixp and ../pdp)" {
+        error-message "Cannot set both i2px-ixp and pdp";
+      }
+
+      // REMINDER: "if A, then B must be true" logic maps to "NOT(A) or B"
+
+      // Require encap when PDP is used
+      must "not(../pdp) or (../encapsulation/native or ../encapsulation/dot1q or ../encapsulation/qinq)" {
+        error-message "When using a pdp, encapsulation must also be defined";
+      }
+      // Require address when PDP is used
+      must "not(../pdp) or (count(../address-ipv4) + count(../address-ipv6) > 0)" {
+        error-message "When using a pdp, at least one address-ipv4 or address-ipv6 must be set";
+      }
+
+      // Prevent encapsulation use when using an IXP
+      must "not(../i2px-ixp) or not(../encapsulation/native or ../encapsulation/dot1q or ../encapsulation/qinq)" {
+        error-message "When using an i2px-ixp, encapsulation must not be set on the i2px-cust/i2px-peer";
+      }
+
+      // Prevent encapsulation use when using an IXP
+      must "not(../i2px-ixp) or (count(../address-ipv4) + count(../address-ipv6) = 0)" {
+        error-message "When using an i2px-ixp, address-ipv4/address-ipv6 must not be set on the i2px-cust/i2px-peer";
+      }
+
+      // Prevent override-mtu use when using an IXP
+      must "not(../override-mtu and ../i2px-ixp)" {
+        error-message "Cannot use override-mtu and i2px-ixp at the same time";
+      }
+    }
+  }
+}

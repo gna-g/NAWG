@@ -1,0 +1,236 @@
+module backbone {
+
+  namespace "http://internet2.edu/yang/backbone";
+  prefix bb;
+
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import pdp {
+    prefix i2-pdp;
+  }
+  import common {
+    prefix i2c;
+  }
+
+  description "Arroyo backbone service";
+
+  augment /ncs:services {
+    uses backbone-list;
+  }
+
+  grouping backbone-list {
+    list backbone {
+      tailf:info "Internet2 backbone service";
+      tailf:cli-allow-wildcard;
+
+      key name;
+      leaf name {
+        tailf:info "Backbone name [POP1-POP2-NN]";
+        tailf:cli-allow-range;
+        type i2c:service-name;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint backbone-servicepoint;
+
+      list pdp {
+        tailf:info "Internet2 Physical Delivery Point - backbone service must define exactly 2 PDPs.";
+
+        key name;
+        leaf name {
+          type leafref {
+            path "/ncs:services/i2-pdp:pdp/i2-pdp:name";
+          }
+        }
+
+        must "deref(name)/../i2-pdp:role = 'backbone'" {
+          error-message "PDP role must be set to backbone";
+          tailf:dependency "name";
+        }
+
+        min-elements 2;
+        max-elements 2;
+      }
+
+      leaf metric-override {
+        tailf:info "This will override the default metric based on route distance. It does not override admin-state metrics";
+        type uint32 {
+          range "1..16777214";
+        }
+      }
+
+      leaf vlan-override {
+        tailf:info "This will override the default backbone VLAN 4079";
+        type uint16 {
+          range "4070..4079";
+        }
+      }
+
+      leaf admin-state {
+        tailf:info "Admin-state for backbone";
+        type enumeration {
+          enum no-config {
+            tailf:info "Input parameters into NSO, allocate IPs, but do not apply configuration to a device";
+          }
+          enum in-service {
+            tailf:info "Service is in active-use";
+          }
+          enum pre-maintenance {
+            tailf:info "Raise ISIS metric to max (16777214) for this backbone service instance";
+          }
+          enum maintenance {
+            tailf:info "Disables ISIS for this backbone service instance, leaves interface up";
+          }
+        }
+        mandatory true;
+      }
+
+      leaf circuit-id {
+        tailf:info "VLAN Circuit ID for sub-interface";
+        type i2c:circuit-id-with-allocate;
+      }
+
+      tailf:action address-allocation {
+        tailf:info "Check or sync assigned service prefixes with resource pool allocation.";
+        tailf:actionpoint backbone-sync-allocation-action;
+        input {
+          choice mode {
+            mandatory true;
+            container check {
+              tailf:info "Checks assigned service prefixes against resource pool allocation.";
+              presence "";
+            }
+            container sync {
+              tailf:info "Deletes assigned service prefix if it differs from resource pool allocation.\n" +
+              "Requires manual re-deploy of service instance";
+              presence "";
+            }
+          }
+        }
+        output {
+          leaf ipv4-prefix-result {
+            type string;
+          }
+          leaf ipv6-prefix-result {
+            type string;
+          }
+        }
+      }
+
+      uses i2c:metadata;
+
+      container summary {
+        config false;
+        tailf:info "Service summary";
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+        leaf circuit-id {
+          type string;
+          // Increase length to cover IC backbones at NEWY32AOA
+          // " | I2-NEWY32AOA-NEWY32AOA-VLAN-193637"
+          tailf:cli-column-width 38;
+        }
+        list endpoint {
+          tailf:info "Backbone endpoint";
+          key pdp;
+          leaf pdp {
+            tailf:info "Referenced PDP";
+            type leafref {
+              path "/ncs:services/i2-pdp:pdp/i2-pdp:name";
+            }
+          }
+          leaf device {
+            tailf:info "PDP device name";
+            type leafref {
+              path "/ncs:devices/ncs:device/ncs:name";
+            }
+          }
+          leaf if-full {
+            tailf:info "PDP interface name";
+            type string;
+
+            // Increase to cover FourHundredGigE0/0/0/12/3
+            tailf:cli-column-width 25;
+          }
+          leaf ipv4-address {
+            tailf:info "Endpoint ipv4-address";
+            type tailf:ipv4-address-and-prefix-length;
+          }
+          leaf ipv6-address {
+            tailf:info "Endpoint ipv6-address";
+            type tailf:ipv6-address-and-prefix-length;
+          }
+        }
+      }
+
+      container vars {
+        config false;
+        tailf:info "Processed config from Python";
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+        leaf ipv4-prefix {
+          tailf:info "IPv4 prefix - must be /31 and be a valid network";
+          type tailf:ipv4-address-and-prefix-length {
+            pattern ".*/31" {
+              error-message "ipv4-prefix must be /31";
+            }
+          }
+        }
+        leaf ipv6-prefix {
+          tailf:info "IPv6 prefix - must be /127 and be a valid network";
+          type tailf:ipv6-address-and-prefix-length {
+            pattern ".*/127" {
+              error-message "ipv6-prefix must be /127";
+            }
+          }
+        }
+        leaf metric {
+          tailf:info "Set via /infrastructure/pops/route-distance mapping";
+          type uint32 {
+            range "1..16777214";
+          }
+        }
+        leaf-list srlg-name {
+          tailf:info "Derived from /infrastructure/pops/route-distance/srlg mapping";
+          type string;
+        }
+        list endpoint {
+          tailf:info "Backbone endpoint";
+          key pdp;
+          leaf pdp {
+            tailf:info "Referenced PDP";
+            type leafref {
+              path "/ncs:services/i2-pdp:pdp/i2-pdp:name";
+            }
+          }
+          leaf ipv4-address {
+            tailf:info "Endpoint ipv4-address";
+            type tailf:ipv4-address-and-prefix-length;
+          }
+          leaf ipv6-address {
+            tailf:info "Endpoint ipv6-address";
+            type tailf:ipv6-address-and-prefix-length;
+          }
+          leaf if-full {
+            tailf:info "PDP interface name";
+            type string;
+          }
+          leaf enable-netflow {
+            tailf:info "Enable netflow on this device";
+            type boolean;
+          }
+        }
+        leaf sdp-description {
+          tailf:info "PDP Description";
+          type string;
+        }
+      }
+    }
+  }
+}

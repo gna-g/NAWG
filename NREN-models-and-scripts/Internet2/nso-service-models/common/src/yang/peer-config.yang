@@ -1,0 +1,632 @@
+module peer-config {
+
+  namespace "https://internet2.edu/yang/peer-config";
+  prefix peer-config;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import pdp {
+    prefix pdp;
+  }
+  import common {
+    prefix i2c;
+  }
+  import prefix-set {
+    prefix prefix-set;
+  }
+
+  description "BGP Peering config groupings and typedefs. This module does not"
+  + " define any stand-alone yang, but rather defines types that are useful "
+  + " when constructing BGP peering models.";
+
+  grouping intf-config-pdp {
+    leaf pdp {
+      tailf:info "PDP to attach service to";
+      type leafref {
+        path "/ncs:services/pdp:pdp/pdp:name";
+      }
+    }
+  }
+
+  grouping intf-config-encap {
+    container encapsulation {
+      tailf:info "Configure interface encapsulation";
+      choice ENCAP {
+        container native {
+          presence "";
+        }
+
+        container dot1q {
+          leaf vlan-id {
+            mandatory true;
+            type uint16 {
+              range "1..4094";
+            }
+          }
+        }
+
+        container qinq {
+          leaf subint-id {
+            tailf:info "Sub-interface ID";
+            mandatory true;
+            type uint32 {
+              range "1..16385";
+              // Platform range support notes
+              //   JunOS tested 1..16385
+              //   EOS tested up to 1..1048575
+              //   IOS-XR tested up to 0..40944094
+              // NB: Legacy services imported from OESS will occasionally use
+              //     sub-interfaces in the 1-4093 range, so we need to allow
+              //     for those.
+            }
+          }
+          leaf outer {
+            mandatory true;
+            type uint16 {
+              range "1..4094";
+            }
+          }
+          leaf inner {
+            mandatory true;
+            type uint16 {
+              range "1..4094";
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Interface config is used to define
+  grouping intf-config {
+
+    uses intf-config-pdp {
+      refine "pdp" {
+        mandatory true;
+      }
+    }
+
+    uses intf-config-encap {
+      refine "encapsulation/ENCAP" {
+        mandatory true;
+      }
+    }
+
+
+    leaf override-mtu {
+      tailf:info "Override default MTU value [default is service dependent]";
+      type uint16 {
+        range "1280..9174";
+      }
+    }
+
+    list address-ipv4 {
+      tailf:info "Internet2 address address";
+      key address;
+      leaf address {
+        type tailf:ipv4-address-and-prefix-length;
+      }
+      ordered-by user;
+    }
+    list address-ipv6 {
+      tailf:info "Internet2 router address";
+      key address;
+      leaf address {
+        type tailf:ipv6-address-and-prefix-length;
+      }
+      ordered-by user;
+    }
+  }
+
+  grouping intf-config-egress-rate {
+    leaf egress-rate-limit {
+      description "Egress rate limit in Mbps (default no rate limit)";
+      type uint32 {
+        range "50|100|200|300|400|500|1000|2000|5000|10000";
+      }
+    }
+  }
+
+  // This flag is something that should be eventually be pulled into
+  // intf-config and intf-config-OPTIONAL once adoption is (near) ubiquitous
+  grouping intf-config-ipv6-ra {
+    leaf ipv6-ra {
+      tailf:info "IPv6 Router Advertisements [default advertise]";
+      default suppress;
+      type enumeration {
+        enum advertise;
+        enum suppress;
+      }
+    }
+  }
+
+  grouping intf-config-OPTIONAL {
+    // clone of intf-config, but with mandatory flags turned off
+    // This might be an ncsc bug because RFC 7950 section 7.13.2 says it should
+    // be allowed. note that it doesn't matter whether the mandatory statement
+    // actually changes the value or just re-specifies it
+
+    uses intf-config-pdp;
+    uses intf-config-encap;
+
+    leaf override-mtu {
+      tailf:info "Override default MTU value [default is service dependent]";
+      type uint16 {
+        range "1280..9174";
+      }
+    }
+
+    list address-ipv4 {
+      tailf:info "Internet2 address address";
+      key address;
+      leaf address {
+        type tailf:ipv4-address-and-prefix-length;
+      }
+      ordered-by user;
+    }
+    list address-ipv6 {
+      tailf:info "Internet2 router address";
+      key address;
+      leaf address {
+        type tailf:ipv6-address-and-prefix-length;
+      }
+      ordered-by user;
+    }
+  }
+
+  grouping multihop {
+    container multihop {
+      tailf:info "Must set TTL value and static routes to enable eBGP multihop";
+      leaf ttl {
+        tailf:info "If set, enables eBGP multihop and uses this value for TTL";
+        type uint16;
+      }
+      list static-route-ipv4 {
+        tailf:info "Static route to support eBGP multihop";
+        key address;
+        leaf address {
+          type inet:ipv4-prefix;
+        }
+        leaf next-hop {
+          tailf:info "Static route next-hop";
+          type inet:ipv4-address;
+        }
+      }
+      list static-route-ipv6 {
+        tailf:info "Static route to support eBGP multihop";
+        key address;
+        leaf address {
+          type inet:ipv6-prefix;
+        }
+        leaf next-hop {
+          tailf:info "Static route next-hop";
+          type inet:ipv6-address;
+        }
+      }
+    }
+  }
+
+  grouping vars-sdp {
+    container sdp {
+      leaf description {
+        type string;
+      }
+      leaf name {
+        type string;
+      }
+      leaf config {
+        type boolean;
+      }
+      leaf mtu {
+        type uint16;
+      }
+      leaf shutdown {
+        type boolean;
+      }
+    }
+  }
+
+  // Neighbor config is used to define our BGP neighbors
+  // BGP configuration
+  grouping neighbor-config {
+    leaf remote-as {
+      tailf:info "Neighbor AS [32 bit]";
+      type uint32;
+      mandatory true;
+    }
+    list neighbor {
+      key address;
+      leaf address {
+        tailf:info "Neighbor address, IPv4 or IPv6";
+        type inet:ip-address;
+      }
+      leaf maximum-prefix {
+        tailf:info "Maximum accepted prefixes [default IPv4=100, IPv6=25]";
+        type uint32;
+      }
+      leaf gtsm-enable {
+        tailf:info "Enable GTSM for this neighor (ttl-security in IOS-XR)";
+        type boolean;
+      }
+      leaf password-md5 {
+        tailf:info "MD5 Password, this neighbor";
+        type string;
+      }
+      uses bfd-grouping;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+    }
+    leaf gtsm-enable {
+      tailf:info "Enable GTSM for all neighors (ttl-security in IOS-XR), default to disabled";
+      type boolean;
+      default false;
+    }
+    leaf password-md5 {
+      tailf:info "MD5 Password, all neighbors";
+      type string;
+    }
+    uses bfd-grouping {
+      refine "bfd/enable" {
+        default false;
+      }
+    }
+  }
+
+  // New style of BGP authentication, can support TCP-AO (someday)
+  // To Use:
+  //    list my-service {
+  //      ... (other stuff)
+  //
+  //      uses peer-config:neighbor-config {
+  //         refine "password-md5" { tailf:hidden DISABLE; }
+  //         refine "neighbor/password-md5" { tailf:hidden DISABLE; }
+  //      }
+  //    }
+  //    augment my-service {
+  //      uses peer-config:bgp-authentication;
+  //    }
+  //    augment my-service/neighbor {
+  //      uses peer-config:bgp-authentication;
+  //    }
+  // This behavior will flip some in the future and password-md5 will be
+  // retired
+  grouping bgp-authentication {
+    container authentication {
+      tailf:info "BGP authentication options";
+      choice AUTH {
+        default none;
+        leaf none {
+          tailf:info "No BGP authentication [default]";
+          type empty;
+        }
+        case md5 {
+          leaf md5 {
+            tailf:info "TCP MD5 authentication";
+            type string;
+          }
+          leaf md5-cisco-encrypted {
+            tailf:info "Cisco Vigenere encrypted MD5, set by python based on `md5` leaf";
+            type string;
+            config false;
+            tailf:cdb-oper {
+              tailf:persistent true;
+            }
+          }
+        }
+        // container tcpao { ... }
+      }
+    }
+  }
+
+  grouping bfd-grouping {
+    container bfd {
+      tailf:info "BFD Configuration - default off";
+      leaf enable {
+        tailf:info "Enable BFD [default disabled]";
+        type boolean;
+      }
+      leaf min-interval {
+        tailf:info "Minimum interval in milli-seconds [default 500]";
+        type uint32 {
+          range "3..30000";
+        }
+        default 500;
+      }
+      leaf multiplier {
+        tailf:info "BFD detect multiplier [default 3]";
+        type uint16 {
+          range "2..16";
+        }
+        default 3;
+      }
+    }
+  }
+
+  grouping vars-neighbor {
+    container neighbor {
+      leaf device {
+        type string;
+      }
+      leaf description {
+        type string;
+      }
+      leaf policy-in {
+        type string;
+      }
+      leaf policy-out {
+        type string;
+      }
+      leaf config {
+        type boolean;
+      }
+      leaf shutdown {
+        type boolean;
+      }
+    }
+  }
+
+  // Policy excpetions (by service)
+  grouping policy-exceptions {
+    container exception-in {
+      tailf:info "Route-Policy Exceptions";
+      uses exception-DROP;
+      uses exception-LOCAL-PREF;
+      uses exception-MED;
+      uses exception-PREPEND;
+      uses exception-COMMUNITY;
+    }
+    container exception-out {
+      tailf:info "Route-Policy Exceptions";
+      uses exception-DROP;
+      uses exception-MED-WITH-IGP;
+      uses exception-PREPEND;
+      uses exception-COMMUNITY;
+    }
+  }
+
+  grouping match-PREFIX {
+    list prefix {
+      tailf:info "Match by named prefix-set";
+      ordered-by user;
+      key name;
+      leaf name {
+        type leafref {
+          path "/i2c:infrastructure/prefix-set:prefix-set/prefix-set:name";
+        }
+      }
+    }
+  }
+
+  grouping match-ASPATH {
+    list neighbor-is {
+      tailf:info "Match if the route is heard from ASN";
+      key asn;
+      leaf asn {
+        type uint32;
+      }
+    }
+    list originates-from {
+      tailf:info "Match if the route originates from ASN";
+      key asn;
+      leaf asn {
+        type uint32;
+      }
+    }
+    list passes-through {
+      tailf:info "Match if the route passes through ASN";
+      key asn;
+      leaf asn {
+        type uint32;
+      }
+    }
+  }
+
+  grouping match-XRCOND {
+    list xr-condition {
+      tailf:info "EXPERT USE ONLY - Specify an XR condition `if {condition} then` in raw";
+      key condition;
+      leaf condition {
+        tailf:info "Example: `community in (123:456) and as-path passes-through '789'`";
+        type string;
+      }
+    }
+  }
+
+  grouping match-ANY {
+    container any {
+      tailf:info "Match any route";
+      presence "";
+    }
+  }
+
+  grouping match-DISABLE-PRIVATE-ASN-CHECK {
+    leaf disable-private-asn-check {
+      tailf:info "Allow private ASNs from peer, by default all are rejected";
+      type empty;
+    }
+  }
+
+  // Exception DROP statements
+  grouping exception-DROP {
+    container drop {
+      tailf:info "Forcibly drop these routes";
+      presence drop;
+      uses match-PREFIX;
+      uses match-ASPATH;
+      uses match-XRCOND;
+      uses match-ANY;
+    }
+  }
+
+  // Exception LOCAL PREF
+  grouping exception-LOCAL-PREF {
+    list local-pref {
+      tailf:info "Override local preferences";
+      key local-pref;
+      leaf local-pref {
+        type uint32;
+      }
+      uses match-PREFIX;
+      uses match-ASPATH;
+      uses match-XRCOND;
+      uses match-ANY;
+    }
+  }
+
+  // Exception LOCAL PREF
+  grouping exception-MED {
+    list med {
+      tailf:info "Override MED";
+      ordered-by user;
+      key value;
+      leaf value {
+        type uint32;
+      }
+
+      uses match-PREFIX;
+      uses match-ASPATH;
+      uses match-XRCOND;
+      uses match-ANY;
+    }
+  }
+  grouping exception-MED-WITH-IGP {
+    list med {
+      tailf:info "Override MED";
+      ordered-by user;
+      key value;
+      leaf value {
+        type union {
+          type uint32 {
+            tailf:info "Specify a static value for MED";
+          }
+          type enumeration {
+            enum igp-cost {
+              tailf:info "Set MED to IGP cost";
+            }
+          }
+        }
+      }
+
+      uses match-PREFIX;
+      uses match-ASPATH;
+      uses match-XRCOND;
+      uses match-ANY;
+    }
+  }
+
+  grouping admin-state {
+    leaf admin-state {
+      tailf:info "Service admin-state";
+      mandatory true;
+      type enumeration {
+        enum no-config {
+          tailf:info "Enter NSO service configuration, but do not push any config to device";
+        }
+        enum in-service {
+          tailf:info "Normal operations - BGP neighbor up, routes sent/received according to RPL";
+        }
+        enum pre-maintenance {
+          tailf:info "BGP neighbor up, depref routes, see EBGP-MAINT-* route-policies [level 1]";
+        }
+        enum maintenance {
+          tailf:info "BGP neighbor up, no routes sent/received";
+        }
+        enum down {
+          tailf:info "BGP neighbor down";
+        }
+      }
+    }
+  }
+
+  // Exception LOCLA PREF
+  grouping exception-PREPEND {
+    list prepend {
+      tailf:info "Prepend as-path";
+      ordered-by user;
+      key "asn count";
+
+      leaf asn {
+        type uint32;
+      }
+
+      leaf count {
+        type uint8 {
+          range "1..63";
+        }
+      }
+
+      uses match-PREFIX;
+      uses match-ASPATH;
+      uses match-XRCOND;
+      uses match-ANY;
+    }
+  }
+
+  grouping exception-COMMUNITY {
+    list add-community {
+      tailf:info "Add community to routes";
+      ordered-by user;
+      key community;
+      leaf community {
+        type union {
+          type community-set;
+          type community-inline;
+        }
+      }
+
+      uses match-PREFIX;
+      uses match-ASPATH;
+      uses match-XRCOND;
+      uses match-ANY;
+    }
+  }
+
+  typedef community-set {
+    tailf:info "Specify a community-set that exists on the router";
+    type string {
+      pattern "[-_A-Z0-9]+";
+    }
+  }
+
+  typedef community-inline {
+    tailf:info "Inline community-set, IE: '(123:456)' or '(12:34, 56:78)'";
+    type string {
+      pattern "\\([0-9:,]+\\)";
+    }
+  }
+
+  // These are like `match`, but only make sense on select-out
+  grouping originate-DEFAULT {
+    leaf originate-default {
+      type empty;
+      tailf:info "Originate a default route";
+    }
+  }
+
+  grouping send-FULLTABLE {
+    leaf send-fulltable {
+      type empty;
+      tailf:info "Send a full routing table";
+    }
+  }
+  grouping send-RE {
+    leaf send-re {
+      type empty;
+      tailf:info "Send RE routes";
+    }
+  }
+  grouping send-I2PX {
+    leaf send-i2px {
+      type empty;
+      tailf:info "Send I2PX routes";
+    }
+  }
+}

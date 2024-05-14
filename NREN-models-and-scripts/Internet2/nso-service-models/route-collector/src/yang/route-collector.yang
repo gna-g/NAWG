@@ -1,0 +1,202 @@
+module route-collector {
+
+  namespace "http://internet2.edu/yang/route-collector";
+  prefix route-collector;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import common {
+    prefix i2c;
+  }
+  import peer-config {
+    prefix peer-config;
+  }
+
+  augment /ncs:services {
+    uses route-collector-top;
+  }
+  augment /i2c:internal-services {
+    uses route-collector-mapping-top;
+  }
+  // Top-level services
+  grouping route-collector-top {
+    list route-collector {
+      tailf:info "route-collector - exports BGP feed, imports none - e.g. Deepfield";
+      tailf:cli-allow-wildcard;
+      key name;
+      leaf name {
+        type i2c:service-name;
+        tailf:cli-allow-range;
+      }
+
+      leaf vrf {
+        tailf:info "Source VRF for peering";
+        mandatory true;
+        type enumeration {
+          enum RE {
+            tailf:info "RE routing table";
+          }
+          enum I2PX {
+            tailf:info "I2PX routing table";
+          }
+          enum BLENDED {
+            tailf:info "BLENDED routing table";
+          }
+        }
+      }
+
+      uses neighbor-config;
+      must "count(neighbor)>0" {
+        error-message "Must define at least one IPv4 or IPv6 neighbor";
+      }
+
+      leaf-list applies-to-role {
+        tailf:info "List of roles to apply this route collector to";
+        type enumeration {
+          enum core;
+          enum agg;
+          enum route-reflector;
+        }
+      }
+      leaf-list applies-to-device {
+        tailf:info "List of devices to apply this route collector to";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+      }
+
+      uses i2c:service-id-leaf;
+      uses i2c:entity-leaf;
+      uses i2c:no-monitor-leaf;
+      uses i2c:pending-leaf;
+      uses i2c:unresponsive-leaf;
+      // uses i2c:description-extra-leaf;
+
+      leaf admin-state {
+        tailf:info "Admin-state of the service";
+        mandatory true;
+        type enumeration {
+          enum no-config {
+            tailf:info "Enter NSO service configuration, but do not push any config to device";
+          }
+          enum in-service {
+            tailf:info "Normal operations";
+          }
+        }
+      }
+
+      container vars {
+        config false;
+        tailf:cdb-oper {
+          tailf:persistent true;
+        }
+        uses peer-config:vars-sdp;
+        uses peer-config:vars-neighbor;
+        leaf loopback-instance {
+          tailf:info "Loopback instance (0, 1, 8), derived based on VRF source-interface";
+          type uint8;
+        }
+      }
+    }
+  }
+
+  grouping route-collector-mapping-top {
+
+    list route-collector-mapping {
+      key "rc device";
+      tailf:cli-allow-wildcard;
+      leaf rc {
+        tailf:info "Leafref to /services/route-collector";
+        type i2c:service-name;
+        tailf:non-strict-leafref {
+          path "/ncs:services/route-collector:route-collector/name";
+        }
+        tailf:cli-allow-range;
+      }
+      leaf device {
+        tailf:info "Leafref to /devices/device";
+        type leafref {
+          path "/ncs:devices/ncs:device/ncs:name";
+        }
+        tailf:cli-allow-range;
+      }
+
+      uses ncs:service-data;
+      ncs:servicepoint route-collector-mapping-servicepoint;
+
+    }
+  }
+
+  grouping neighbor-config {
+    leaf remote-as {
+      tailf:info "Neighbor AS [32 bit]";
+      mandatory true;
+      type uint32;
+    }
+    leaf source-interface {
+      tailf:info "Interface to source the BGP session from";
+      mandatory true;
+      type enumeration {
+        enum loopback {
+          tailf:info "loopback instance based on VRF";
+        }
+      }
+    }
+    leaf-list neighbor {
+      tailf:info "List of neighbor addresses - supports v4 and v6";
+      type inet:ip-address;
+    }
+    leaf-list address-families {
+      tailf:info "Address families to send to route collector";
+      // update the jinja list in the template if you add anything here
+      type enumeration {
+        enum ipv4-unicast;
+        enum ipv4-flowspec;
+        enum ipv6-unicast;
+        enum ipv6-flowspec;
+        enum vpnv4-unicast;
+        enum vpnv4-flowspec;
+        enum vpnv6-unicast;
+        enum vpnv6-flowspec;
+        enum l2vpn-vpls-vpws;
+        enum l2vpn-evpn;
+      }
+    }
+    leaf route-reflector-client {
+      tailf:info "Set to true if neighbors are route reflector clients - defaults to false";
+      type boolean;
+      default false;
+    }
+    leaf next-hop {
+      tailf:info "Change default behavior on next-hop [default is whatever the platform-default is]";
+      type enumeration {
+        enum unchanged;
+        enum self;
+      }
+    }
+    leaf policy-out {
+      tailf:info "Manually specify the outbound route policy to use [default PASS-ALL]";
+      type string;
+      default "PASS-ALL";
+    }
+    leaf send-community {
+      tailf:info "Send BGP communities [default: always for iBGP, no for eBGP]";
+      type boolean;
+    }
+    leaf multihop-ttl {
+      tailf:info "If set, enables multihop and uses the value for TTL";
+      type uint16;
+    }
+    leaf password-md5 {
+      tailf:info "Optional - MD5 Password";
+      type string;
+    }
+  }
+}
