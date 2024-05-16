@@ -1,0 +1,216 @@
+module esnet-lsp {
+  namespace "http://es.net/esnet-lsp";
+  prefix esnet-lsp;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-routing-domain {
+    prefix esnet-routing-domain;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "Label Switched Path";
+
+  grouping probe {
+    description "Value unit pair";
+    leaf value {
+      type decimal64 {
+        fraction-digits 4;
+      }
+      description "Value";
+    }
+    leaf unit {
+      type string;
+      description "Unit";
+    }
+  }
+
+  grouping mpls-path {
+    leaf path-type {
+      type enumeration {
+        enum strict {
+          description "The path is strict";
+        }
+        enum loose {
+          description "The path is loose";
+        }
+      }
+      description "Set the path type to strict or loose";
+    }
+
+    list hop {
+      when "../path-type = 'strict'";
+      key number;
+      leaf number {
+        type uint32 {
+          range "1..1024";
+        }
+        description "Hop number";
+      }
+      leaf ipv4 {
+        type ietf-inet-types:ipv4-address;
+        mandatory true;
+        description "IPv4 address";
+      }
+      description "Path segment";
+    }
+    description "MPLS path";
+  }
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list lsp {
+
+      key "name device";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-lsp";
+
+      description "Label Switched Path";
+      leaf name {
+        type string {
+          length "1..48";
+          pattern "[a-zA-Z0-9_-]+";
+        }
+        description "LSP instance name";
+      }
+
+      tailf-common:action lsp-ping {
+        tailf-common:actionpoint lsp-ping-action;
+        description "checks the LSP end-to-end connectivity";
+        output {
+          leaf ping-status {
+            type boolean;
+            description "Status of the LSP-ping: true if successful, false otherwise";
+          }
+          leaf error-message {
+            type string;
+            description "Error message";
+          }
+          container rtt {
+            uses probe;
+            description "RTT";
+          }
+        }
+      }
+
+      leaf routing-domain {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+          error-message "Device must be a core router";
+        }
+        mandatory true;
+        description "The source device of the path";
+      }
+
+      container target {
+        leaf device {
+          type leafref {
+            path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../routing-domain]/esnet-routing-domain:device";
+          }
+          must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+            error-message "Device must be a core router";
+          }
+          must "../device != ../../device" {
+            error-message "Target and source device must be different devices";
+          }
+          mandatory true;
+          description "Target device";
+        }
+        leaf ipv4 {
+          type ietf-inet-types:ipv4-address;
+          description "Loopback address to add at destination (required for Junos-to-Nokia LSPs only)";
+        }
+        description "Target / Destination";
+      }
+
+      tailf-common:validate "lsp-validate-path" {
+        tailf-common:dependency "primary";
+        tailf-common:dependency "secondary";
+      }
+
+      leaf metric {
+        type uint32 {
+          range "1..16777215";
+        }
+        description "LSP path metric";
+      }
+
+      container primary {
+        uses mpls-path;
+
+        leaf hold-priority {
+          type uint32 {
+            range "0..7";
+          }
+          must "../hold-priority <= ../setup-priority" {
+            error-message "The primary's path hold-priority must be smaller or equal to the setup-priority";
+          }
+          default 5;
+          description "Hold priority";
+        }
+        leaf setup-priority {
+          type uint32 {
+            range "0..7";
+          }
+          default 5;
+          description "Setup priority";
+        }
+
+        must "count(./path-type) = 1" {
+          error-message "The path must mave a type: strict / loose";
+        }
+        description "Primary path";
+      }
+
+      container secondary {
+        when "../primary/path-type = 'strict'";
+        uses mpls-path;
+
+        leaf hold-priority {
+          type uint32 {
+            range "0..7";
+          }
+          must "../hold-priority <= ../setup-priority" {
+            error-message "The secondary's path hold-priority must be smaller or equal to the setup-priority";
+          }
+          default 4;
+          description "Hold priority";
+        }
+        leaf setup-priority {
+          type uint32 {
+            range "0..7";
+          }
+          default 4;
+          description "Setup priority";
+        }
+        description "Secondary path (rarely used or required)";
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+    }
+  }
+}

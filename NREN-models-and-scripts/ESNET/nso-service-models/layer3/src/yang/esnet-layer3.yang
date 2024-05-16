@@ -1,0 +1,1070 @@
+module esnet-layer3 {
+
+  namespace "http://es.net/esnet-layer3";
+  prefix esnet-layer3;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import ietf-yang-types {
+    prefix ietf-yang-types;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-port {
+    prefix esnet-port;
+  }
+  import esnet-routing-domain {
+      prefix esnet-routing-domain;
+  }
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Layer 3 Service";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list l3-interface {
+      must "count(v4/address) + count(v6/address) > 0" {
+          error-message "must configure at least one v4/address or v6/address";
+      }
+      key "device service-edge";
+      uses layer3-interface;
+      uses layer2-interface;
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+      description "Layer 3 interfaces";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-l3-interface";
+    }
+
+    list l3-peer-dmz {
+      tailf-common:hidden full;
+      key asn;
+      uses layer3-peer-dmz;
+      description "Peer DMZs";
+    }
+
+    list l3-peer {
+      key asn;
+      tailf-common:validate "peer-validate-asn" {
+        tailf-common:dependency "asn";
+      }
+
+      description "Peer configuration";
+      uses layer3-peer;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-l3-peer";
+    }
+
+    list l3-customer {
+      key name;
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+      description "Layer 3 customer peerings";
+      uses layer3-customer;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-l3-customer";
+    }
+
+    list l3-transit {
+      key name;
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+      description "Layer 3 transit peerings";
+      uses layer3-transit;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-l3-transit";
+    }
+
+    list l3-scram {
+      key name;
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+      description "Layer 3 scram peerings";
+      uses layer3-scram;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-l3-scram";
+    }
+  }
+
+  grouping elmo {
+    description "Ephemeral Latent Modifiadable Object grouping";
+    leaf elmo {
+      type string;
+      tailf-common:hidden full;
+      default "initial";
+      description "Used to trigger member commits from related services or API";
+    }
+  }
+
+  // L3-CUSTOMER
+  grouping layer3-customer {
+    uses layer3-edge;
+    uses elmo;
+    description "Layer 3 customer parameters";
+
+    leaf feature-bhr {
+      type boolean;
+      default false;
+
+      description "Enable BGP black hole routing (BHR) for the l3-customer.";
+    }
+
+    container v4 {
+      presence v4;
+      uses bgp-neighbor-v4;
+      uses static-v4;
+      uses customer-filters;
+      uses customer-routing;
+
+      description "IPv4 peering paremeters";
+    }
+    container v6 {
+      presence v6;
+      uses bgp-neighbor-v6;
+      uses static-v6;
+      uses customer-filters;
+      uses customer-routing;
+      description "IPv6 peering paremeters";
+    }
+  }
+
+  grouping customer-filters {
+    description "Customer filter parameters";
+    leaf bcp38-filter-num {
+      type uint32 {
+        range "1..65535";
+      }
+      mandatory true;
+      description "BCP38 filter number (for Nokia)";
+    }
+
+    leaf dmz-entry-num {
+      type uint32 {
+        range "1..100000";
+      }
+      must "current() != ../statics-entry-num" {
+        error-message "dmz-entry-num must be different from statics-entry-num";
+      }
+      mandatory true;
+      description "DMZ connected-routes entry number (for Nokia)";
+    }
+
+    leaf statics-entry-num {
+      type uint32 {
+        range "1..100000";
+      }
+      mandatory true;
+      description "statics connected-routes entry num (for Nokia)";
+    }
+  }
+
+  // L3-TRANSIT
+  grouping layer3-transit {
+    uses layer3-edge;
+    uses elmo;
+    description "Layer 3 transit parameters";
+
+    container v4 {
+      presence v4;
+      uses bgp-neighbor-v4;
+      uses static-v4;
+      description "IPv4 peering paremeters";
+    }
+    container v6 {
+      presence v6;
+      uses bgp-neighbor-v6;
+      uses static-v6;
+      description "IPv6 peering paremeters";
+    }
+  }
+
+  // L3-SCRAM
+  grouping layer3-scram {
+    uses layer3-edge {
+        refine service-edge {
+            must "/tailf-ncs:services/esnet-layer3:l3-interface[device=current()/../device and service-edge=current()]/type = 'loopback'" {
+              error-message "SCRAM interface must be of type loopback";
+            }
+        }
+    }
+    description "Layer 3 SCRAM parameters";
+
+    container v4 {
+      presence v4;
+      uses bgp-neighbor-v4 {
+        refine bgp-neighbor/localpref {
+          mandatory false;
+        }
+      }
+      description "IPv4 peering paremeters";
+    }
+    container v6 {
+      presence v6;
+      uses bgp-neighbor-v6 {
+        refine bgp-neighbor/localpref {
+          mandatory false;
+        }
+      }
+      description "IPv6 peering paremeters";
+    }
+  }
+
+  grouping layer3-edge {
+    description "Layer 3 edge parameters";
+    leaf name {
+      type string;
+      description "instance name";
+    }
+
+    // pick a peer
+    leaf asn {
+      type leafref {
+        path "/tailf-ncs:services/esnet-layer3:l3-peer/asn";
+      }
+      description "Peer ASN (from l3-peer)";
+    }
+
+    // pick a routing domain from the peer
+    leaf routing-domain {
+      type leafref {
+        path "/tailf-ncs:services/esnet-layer3:l3-peer[asn=current()/../asn]/routing-domain/name";
+      }
+      mandatory true;
+      description "Routing domain instance (from l3-peer). Must have selected ASN first. ";
+    }
+
+    // pick a route table from the peer's routing domain
+    leaf route-table {
+      type leafref {
+        path "/tailf-ncs:services/esnet-layer3:l3-peer[asn=current()/../asn]/routing-domain[name=current()/../routing-domain]/route-table/name";
+      }
+      mandatory true;
+      description "Route table (from l3-peer). Must have selected routing-domain first.";
+    }
+
+    // finally the device must be one of the ones configured in the assigned peer route-table
+    leaf device {
+      type leafref {
+        path "/tailf-ncs:services/esnet-layer3:l3-peer[asn=current()/../asn]/routing-domain[name=current()/../routing-domain]/route-table[name=current()/../route-table]/device";
+      }
+      mandatory true;
+      description "Device (from l3-peer). Must have selected routing-domain and route-table first.";
+    }
+
+    // must reference an l3-interface on the device with matching routing-domain and route-table
+    leaf service-edge {
+      type leafref {
+        path "/tailf-ncs:services/esnet-layer3:l3-interface[device=current()/../device]/service-edge";
+      }
+      must "/tailf-ncs:services/esnet-layer3:l3-interface[device=current()/../device and service-edge=current()]/routing-domain = ../routing-domain" {
+        error-message "layer3 interface routing-domain must match";
+      }
+      must "/tailf-ncs:services/esnet-layer3:l3-interface[device=current()/../device and service-edge=current()]/route-table = ../route-table" {
+        error-message "layer3 interface route-table must match";
+      }
+      mandatory true;
+      description "Service edge (from l3-interface); its device and route table must match. Must have selected routing-domain, route-table, and device.";
+    }
+
+  }
+
+
+  // STATICS SECTION
+  grouping static-v4 {
+    list static {
+      key network;
+      leaf network {
+        type ietf-inet-types:ipv4-prefix;
+        description "network";
+      }
+      leaf nexthop {
+        type ietf-inet-types:ipv4-address;
+        description "next hop";
+      }
+      description "ipv4 next hops";
+    }
+    description "IPV4 static parameters";
+  }
+  grouping static-v6 {
+    list static {
+      key network;
+      leaf network {
+        type ietf-inet-types:ipv6-prefix;
+        description "network";
+      }
+      leaf nexthop {
+        type ietf-inet-types:ipv6-address;
+        description "next hop";
+      }
+      description "ipv6 next hops";
+    }
+    description "IPV6 static parameters";
+  }
+
+  // CUSTOMER ROUTING
+  grouping customer-routing {
+    leaf to-customers-only {
+      type boolean;
+      default false;
+      description "Advertise received routes only to other ESnet customers (community 293:20)";
+    }
+
+    leaf send-default-route {
+      type boolean;
+      default false;
+      description "Send default route";
+    }
+    leaf export-routes {
+      type enumeration {
+        enum sites {
+          value 1;
+          description "Site routes";
+        }
+        enum rne {
+          value 2;
+          description "R & E routes";
+        }
+        enum full {
+          value 3;
+          description "Full route table";
+        }
+      }
+      default sites;
+      description "Routes to export";
+    }
+    description "Customer route exports";
+  }
+
+  // BGP NEIGHBOR SECTION
+  grouping bgp-neighbor-v4 {
+    description "IPv4 BGP neighbor";
+    list bgp-neighbor {
+      key peer-address;
+      leaf peer-address {
+        type ietf-inet-types:ipv4-address;
+        mandatory true;
+        description "Peer IPv4 address";
+      }
+      uses bgp-neighbor-v4v6;
+      description "BGP neighbors";
+    }
+  }
+
+  grouping bgp-neighbor-v6 {
+    description "IPv6 BGP neighbor";
+    list bgp-neighbor {
+      key peer-address;
+      leaf peer-address {
+        type ietf-inet-types:ipv6-address;
+        mandatory true;
+        description "Peer IPv6 address";
+      }
+      uses bgp-neighbor-v4v6;
+      description "BGP neighbors";
+    }
+  }
+
+  grouping bgp-neighbor-v4v6 {
+    leaf description {
+      type string;
+      mandatory true;
+      description "Neighbor description";
+    }
+    leaf localpref {
+      type enumeration {
+        enum 22 {
+          value 22;
+          description "22";
+        }
+        enum 50 {
+          value 50;
+          description "50";
+        }
+        enum 1000 {
+          value 1000;
+          description "1000";
+        }
+        enum 1900 {
+          value 1900;
+          description "1900";
+        }
+        enum 2000 {
+          value 2000;
+          description "2000";
+        }
+        enum 2900 {
+          value 2900;
+          description "2900";
+        }
+        enum 3000 {
+          value 3000;
+          description "3000";
+        }
+        enum 3100 {
+          value 3100;
+          description "3100";
+        }
+        enum 3900 {
+          value 3900;
+          description "3900";
+        }
+        enum 4000 {
+          value 4000;
+          description "4000";
+        }
+        enum 4100 {
+          value 4100;
+          description "4100";
+        }
+        enum 6000 {
+          value 6000;
+          description "6000";
+        }
+        enum 9900 {
+          value 9900;
+          description "9900";
+        }
+        enum 10000 {
+          value 10000;
+          description "10000";
+        }
+      }
+      mandatory true;
+      description "local preference";
+    }
+    leaf confstate {
+      type enumeration {
+        enum no-config {
+          value 1;
+          description "no config";
+        }
+        enum shutdown {
+          value 2;
+          description "shutdown";
+        }
+        enum turnup {
+          value 3;
+          description "turnup";
+        }
+        enum production {
+          value 4;
+          description "production";
+        }
+      }
+      default production;
+      description "Config state";
+    }
+    leaf md5-key {
+      type string {
+        length "1..64";
+      }
+      description "MD5 key";
+    }
+
+    leaf med {
+      type enumeration {
+        enum cidr-export-only {
+          value 1;
+          description "CIDR export only";
+        }
+        enum adjacent {
+          value 2;
+          description "adjacent";
+        }
+        enum near {
+          value 3;
+          description "near";
+        }
+        enum distant {
+          value 4;
+          description "distant";
+        }
+        enum backup {
+          value 5;
+          description "backup";
+        }
+        enum no-med {
+          value 6;
+          description "no MED (and no CIDR)";
+        }
+      }
+      default cidr-export-only;
+      description "MED import / export policy";
+    }
+
+    leaf med-acceptance {
+      type boolean;
+      default true;
+      description "MED import acceptance";
+    }
+
+    leaf bgp-prepend {
+      type uint16 {
+        range "0 .. 5";
+      }
+      default 0;
+      description "BGP prepend (default 0)";
+    }
+    leaf gtsm {
+      type boolean;
+      default false;
+      description "GTSM";
+    }
+    leaf bfd {
+      type enumeration {
+        enum enable {
+          value 1;
+          description "enable";
+        }
+        enum disable {
+          value 2;
+          description "disable";
+        }
+      }
+      default disable;
+      description "bfd";
+    }
+    leaf paid-transit {
+      type boolean;
+      default false;
+      description "paid-transit";
+    }
+    description "BGP neighbor params";
+  }
+
+  // PEER DMZs
+  grouping layer3-peer-dmz {
+    description "DMZs by routing-domain / table / family";
+    leaf asn {
+        type ietf-inet-types:as-number;
+        mandatory true;
+        description "Peer ASN";
+    }
+    list routing-domain {
+      key name;
+      description "Routing domain profiles";
+      leaf name {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+      list route-table {
+        key name;
+        description "route tables";
+        leaf name {
+          type leafref {
+            path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../name]/esnet-routing-domain:bgp/esnet-routing-domain:route-table/esnet-routing-domain:name";
+          }
+
+          mandatory true;
+          description "route table name";
+        }
+        container v4 {
+          presence v4;
+          list dmz {
+            key network;
+            leaf network {
+              type ietf-inet-types:ipv4-prefix;
+              description "IPV4 prefix";
+            }
+            description "IPV4 DMZ ";
+          }
+          description "IPv4 parameters";
+        }
+        container v6 {
+          presence v6;
+          list dmz {
+            key network;
+            leaf network {
+              type ietf-inet-types:ipv6-prefix;
+              description "IPV6 prefix";
+            }
+            description "IPV6 DMZ ";
+          }
+          description "IPv6 parameters";
+        }
+
+      }
+
+    }
+  }
+
+  // LAYER 3 PEER SECTION
+  grouping layer3-peer {
+    description "Peer parameters";
+
+    leaf asn {
+        type ietf-inet-types:as-number;
+        must "current() < 291 or current() > 293";
+        mandatory true;
+        description "autonomous system number";
+    }
+
+    leaf short-name {
+      type string {
+        length "2..14";
+        pattern "[a-zA-Z0-9-]+";
+      }
+      mandatory true;
+      description "Peer short name";
+    }
+
+    leaf long-name {
+      type string {
+        length "2..128";
+        pattern "[ _a-zA-Z0-9-]+";
+      }
+      mandatory true;
+      description "Peer long name";
+    }
+
+    list routing-domain {
+      key name;
+      description "Routing domain profiles";
+      leaf name {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+
+      list route-table {
+        key name;
+        leaf name {
+          type leafref {
+            path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../name]/esnet-routing-domain:bgp/esnet-routing-domain:route-table/esnet-routing-domain:name";
+          }
+
+          mandatory true;
+          description "route table";
+        }
+        leaf orch-id {
+          type string;
+          description "Orchestrator id";
+        }
+        leaf-list device {
+          type leafref {
+            path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../name]/esnet-routing-domain:device";
+          }
+          must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router' ]" {
+            error-message "Device must be a core router";
+          }
+          description "Devices to deploy on";
+        }
+
+        leaf peer-type {
+          type enumeration {
+            enum site {
+              value 1;
+              description "Site";
+            }
+            enum route-collector {
+              value 2;
+              description "Route collector";
+            }
+            enum nsp {
+              value 3;
+              description "NSP";
+            }
+            enum ren {
+              value 4;
+              description "REN";
+            }
+            enum int {
+              value 5;
+              description "INT";
+            }
+            enum edu {
+              value 6;
+              description "EDU";
+            }
+            enum cern {
+              value 7;
+              description "CERN";
+            }
+            enum scram {
+              value 8;
+              description "SCRAM";
+            }
+          }
+          default site;
+          description "Peer type";
+        }
+
+        container v4 {
+          presence v4;
+          leaf prefix-limit {
+            type uint32 {
+              range "1..4294967295";
+            }
+            mandatory true;
+            description "prefix-limit for ipv4";
+          }
+          leaf filter-prefixes {
+            type boolean;
+            default true;
+            description "Filter prefixes";
+          }
+          list prefix {
+            key network;
+            uses routing-prefix-v4;
+            max-elements 50000;
+            description "IPV4 prefixes";
+          }
+          description "IPv4 prefix-lists and related parameters";
+        }
+
+        container v6 {
+          presence v6;
+          leaf prefix-limit {
+            type uint32 {
+              range "1..4294967295";
+            }
+            mandatory true;
+            description "prefix-limit for ipv6";
+          }
+          leaf filter-prefixes {
+            type boolean;
+            default true;
+            description "Filter prefixes";
+          }
+          list prefix {
+            key network;
+            uses routing-prefix-v6;
+            max-elements 50000;
+            description "IPV4 prefixes";
+          }
+          description "IPv6 prefix-lists and related parameters";
+        }
+
+        description "Route table";
+      }
+    }
+  }
+
+  grouping routing-prefix-type {
+    leaf type {
+      type enumeration {
+        enum exact {
+          value 1;
+          description "exact";
+        }
+        enum upto {
+          value 2;
+          description "up-to";
+        }
+      }
+      mandatory true;
+      description "Routing prefix type";
+    }
+    description "Routing prefix type grouping";
+  }
+
+  grouping routing-prefix-v4 {
+    leaf network {
+      type ietf-inet-types:ipv4-prefix;
+      description "IPV4 network";
+    }
+    leaf length {
+      when "current()/../type = 'upto'";
+      type uint16 {
+        range "8 .. 32";
+      }
+      mandatory true;
+      description "max accepted length";
+    }
+    uses routing-prefix-type;
+    description "IPV4 prefix parameters";
+  }
+
+  grouping routing-prefix-v6 {
+    leaf network {
+      type ietf-inet-types:ipv6-prefix;
+      description "IPV6 network";
+    }
+    leaf length {
+      when "current()/../type = 'upto'";
+      type uint16 {
+        range "32 .. 128";
+      }
+      mandatory true;
+      description "max accepted length";
+    }
+    uses routing-prefix-type;
+    description "IPV6 prefix parameters";
+  }
+
+
+
+  // LAYER 2 INTERFACE SECTION
+  grouping layer2-interface {
+    leaf device {
+      type leafref {
+        path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+      }
+      mandatory true;
+      description "Device (from routing-domain)";
+    }
+    leaf ifce {
+      when "../type != 'loopback'";
+      type leafref {
+        path "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../device]/esnet-port:ifce";
+      }
+      must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../device and esnet-port:ifce=current()]/esnet-port:mode = 'hybrid' " +
+      "or /tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../device and esnet-port:ifce=current()]/esnet-port:mode = 'access'" {
+        error-message "invalid ifce mode";
+      }
+      mandatory true;
+      description "Ifce (from port service)";
+    }
+
+    leaf vlan-id {
+      when "../type != 'loopback' and /tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../device and esnet-port:ifce=current()/../ifce]/esnet-port:eth-encap = 'dot1q'";
+      type uint32 {
+          range "0..4095";
+      }
+      mandatory true;
+      description "VLAN id";
+    }
+
+    leaf layer2-description {
+      when "../type != 'loopback'";
+      type string;
+      mandatory true;
+      description "Layer 2 subinterface (SAP) description";
+    }
+
+    leaf custom-mac {
+      when "../type != 'loopback'";
+      type ietf-yang-types:mac-address;
+      description "Custom MAC address";
+    }
+
+    description "Layer 2 interface config";
+  }
+
+  // LAYER 3 INTERFACE SECTION
+  grouping layer3-interface {
+    description "Layer3 service parameters.";
+    leaf service-edge {
+      type string {
+        length "2..32";
+        pattern "[a-zA-Z][a-zA-Z0-9_-]+";
+      }
+      description "Service-edge / interface name";
+    }
+
+    leaf layer3-description {
+      type string;
+      mandatory true;
+      description "Layer3 interface description";
+    }
+
+    leaf routing-domain {
+        type leafref {
+            path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain";
+    }
+
+    leaf route-table {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:bgp/esnet-routing-domain:route-table/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Route table";
+    }
+
+    leaf type {
+      type enumeration {
+        enum external {
+          value 1;
+          description "External-facing interface";
+        }
+        enum esnet {
+          value 2;
+          description "ESnet edge ";
+        }
+        enum loopback {
+          value 3;
+          description "Loopback interface";
+        }
+      }
+      default external;
+      description "Interface type";
+    }
+    leaf admin-state {
+      type enumeration {
+        enum up {
+          value 1;
+          description "Administratively up";
+        }
+        enum down {
+          value 2;
+          description "Administratively down (shutdown) ";
+        }
+      }
+      default up;
+      description "Admin state";
+    }
+    leaf junos-loopback-num {
+      when "../type = 'loopback'";
+      type uint32 {
+          range "1..4095";
+      }
+      description "Loopback number (required for Junipers)";
+    }
+
+    leaf mtu {
+      type enumeration {
+        enum 9110 {
+          value 9110;
+          description "9110";
+        }
+        enum 9000 {
+          value 9000;
+          description "9000";
+        }
+        enum 1500 {
+          value 1500;
+          description "1500";
+        }
+      }
+      default 1500;
+      description "MTU";
+    }
+
+    container v4 {
+      presence v4;
+      uses address-v4;
+      uses layer3-bfd;
+      uses ip-filter;
+      uses int-urpf;
+      description "IPv4 parameters";
+    }
+    container v6 {
+      presence v6;
+      uses address-v6;
+      uses layer3-bfd;
+      uses ip-filter;
+      uses int-urpf;
+      description "IPv6 parameters";
+    }
+  }
+
+  grouping int-urpf {
+    description "uRPF strict or disabled";
+    leaf urpf {
+      type enumeration {
+        enum disabled {
+          value 1;
+          description "uRPF disabled";
+        }
+        enum strict {
+          value 2;
+          description "uRPF strict mode";
+        }
+      }
+      default disabled;
+      description "URPF";
+    }
+  }
+
+  grouping layer3-bfd {
+    description "BFD parameters";
+    leaf bfd {
+      type enumeration {
+        enum disabled {
+          value 1;
+          description "Disabled";
+        }
+        enum slow {
+          value 2;
+          description "Slower interval (500ms), multiplier (x5)";
+        }
+        enum regular {
+          value 3;
+          description "Regular interval (300ms), multiplier (x3)";
+        }
+      }
+      default disabled;
+      description "BFD";
+    }
+  }
+
+  grouping ip-filter {
+    description "Interface IP filter";
+    leaf junos-in-filter {
+      type string;
+      description "Juniper input filter name";
+    }
+    leaf junos-out-filter {
+      type string;
+      description "Juniper output filter name";
+    }
+    leaf nokia-in-filter {
+      type uint32 {
+        range "1..65535";
+      }
+      description "Nokia ip-filter (or ipv6-filter) id";
+    }
+    leaf nokia-out-filter {
+      type uint32 {
+        range "1..65535";
+      }
+      description "Nokia ip-filter (or ipv6-filter) id";
+    }
+  }
+
+  grouping address-v4 {
+    description "IPv4 addressing";
+
+    leaf address {
+      type tailf-common:ipv4-address-and-prefix-length;
+      mandatory true;
+      description "Primary IPv4 address";
+    }
+    leaf-list secondary {
+      when "../../type != 'loopback'";
+      type tailf-common:ipv4-address-and-prefix-length;
+      description "Secondary IPv4 address";
+    }
+  }
+
+
+  grouping address-v6 {
+    description "IPv6 addressing";
+
+    leaf address {
+      type tailf-common:ipv6-address-and-prefix-length;
+      mandatory true;
+      description "Primary IPv6 address";
+    }
+    leaf-list secondary {
+      when "../../type != 'loopback'";
+      type tailf-common:ipv6-address-and-prefix-length;
+      description "Secondary IPv6 address";
+    }
+  }
+
+}

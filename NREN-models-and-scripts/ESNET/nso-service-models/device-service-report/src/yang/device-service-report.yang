@@ -1,0 +1,136 @@
+module device-service-report {
+
+  namespace "http://es.net/device-service-report";
+  prefix device-service-report;
+
+  import tailf-common { prefix tailf-common; }
+  import tailf-ncs { prefix tailf-ncs; }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description
+    "Action used to provide service configuration statistics for the selected device";
+
+  typedef brief-verbose {
+    type enumeration {
+      enum BRIEF {
+        value 0;
+        description "provide abbreviated service report";
+      }
+      enum VERBOSE {
+        value 1;
+        description "provide full service report";
+      }
+    }
+    description "simple verbose/brief enum";
+  }
+
+  container service-report {
+    description "evaluate service configuration data for the selected device";
+    tailf-common:action service-report-action {
+      tailf-common:actionpoint device-service-report-action;
+      description "select a device to generate service configuration report";
+      input {
+        leaf device {
+          type leafref {
+            path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+          }
+          description "select a device";
+        }
+
+        leaf report-type {
+          type brief-verbose;
+          description "select report type";
+        }
+      }
+      output {
+        leaf device {
+          type string;
+          description "selected device";
+        }
+        leaf report-type {
+          type brief-verbose;
+          description "select report type";
+        }
+        leaf message {
+          type string;
+          description "status message";
+        }
+        leaf device-owned-configurations {
+          type uint16;
+          description "number of device owned configuration lines";
+        }
+        leaf device-owned-pct {
+          type uint16;
+          description "percentage of total device owned configuration lines";
+        }
+        leaf service-owned-configurations {
+          type uint16;
+          description "number of service owned device configuration lines";
+        }
+        leaf service-owned-pct {
+          type uint16;
+          description "percentage of total service owned device configuration lines";
+        }
+        container service-breakdown {
+          when "../../report-type=VERBOSE";
+          description "service specific breakdown data";
+
+          leaf total-unique-services {
+            type uint16;
+            description "total number of unique service instances identified in device config";
+          }
+          list unique-services {
+            key "service-key";
+            description "unique service information";
+
+            leaf service-key {
+              type string;
+              description "service instance identifier";
+            }
+
+            leaf service-count {
+              type uint16;
+              description "number of related service configurations";
+            }
+
+            leaf service-pct {
+              type uint16;
+              description "config percentage of all services";
+            }
+
+            leaf config-pct {
+              type uint16;
+              description "config percentage of all device configurations";
+            }
+          }
+        }
+        container referenced-service-configs {
+          when "../../report-type=VERBOSE";
+          description "service reference breakdown data";
+
+          list referenced-services {
+            key "leaf_name refcount backpointer";
+            description "all services associated to the selected device";
+
+            leaf leaf_name {
+              type string;
+              description "device configuration leaf found to have a reference to a service";
+            }
+
+            leaf refcount {
+              type uint8;
+              description "number of service references to this device configuration leaf";
+            }
+
+            leaf backpointer {
+              type string;
+              description "xpath to referenced service configuration";
+            }
+          }
+        }
+      }
+    }
+  }
+
+}

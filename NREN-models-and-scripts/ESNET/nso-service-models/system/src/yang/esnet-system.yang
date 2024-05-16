@@ -1,0 +1,127 @@
+module esnet-system {
+  namespace "http://es.net/esnet-system";
+  prefix esnet-system;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet System Baseconfig Service";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list system {
+      key device;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-system";
+      description "ESnet system base configuration instances";
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device to use";
+      }
+      leaf loopback-ipv4 {
+        when "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()/../device]/esnet-common:role = 'core-router'";
+        type ietf-inet-types:ipv4-address;
+        mandatory true;
+        description "Loopback IPv4 address";
+      }
+      leaf loopback-ipv6 {
+        when "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()/../device]/esnet-common:role[. = 'core-router' or . = 'management-router']";
+        type ietf-inet-types:ipv6-address;
+        mandatory true;
+        description "Loopback IPv6 address";
+      }
+      leaf ipv4-node-sid {
+        when "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()/../device]/esnet-common:role = 'core-router'";
+        type uint32 {
+          range "256..1048576";
+        }
+        description "IPv4 node SID";
+      }
+      leaf ipv6-node-sid {
+        when "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()/../device]/esnet-common:role[. = 'core-router' or . = 'management-router']";
+        type uint32 {
+          range "256..1048576";
+        }
+        description "IPv6 node SID";
+      }
+
+      leaf longitude {
+        type decimal64 {
+          fraction-digits 8;
+          range "-180.00..180.00";
+        }
+        mandatory true;
+        description "Longitude";
+      }
+      leaf latitude {
+        type decimal64 {
+          fraction-digits 8;
+          range "-90.00..90.00";
+        }
+        mandatory true;
+        description "Latitude";
+      }
+      container feature-flags {
+        description "Feature flags";
+      }
+
+      container timeout {
+        leaf mode {
+          type enumeration {
+            enum platform {
+              value 0;
+              description "Use default timeout values for vendor/platform";
+            }
+            enum global-settings {
+              value 1;
+              description "Use timeout values from devices/global-settings";
+            }
+            enum custom {
+              value 2;
+              description "Set custom timeout values for this device";
+            }
+          }
+          default platform;
+          description "Service assigning the VLAN";
+        }
+
+        leaf connect {
+          when "../mode = 'custom'";
+          type uint32;
+          mandatory true;
+          description "Custom connect timeout";
+        }
+        leaf read {
+          when "../mode = 'custom'";
+          type uint32;
+          mandatory true;
+          description "Custom read timeout";
+        }
+        leaf write {
+          when "../mode = 'custom'";
+          type uint32;
+          mandatory true;
+          description "Custom write timeout";
+        }
+        description "Control plane timeout configuration";
+
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+    }
+  }
+}

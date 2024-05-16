@@ -1,0 +1,504 @@
+module esnet-bbl {
+  namespace "http://es.net/esnet-bbl";
+  prefix esnet-bbl;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-port {
+    prefix esnet-port;
+  }
+  import esnet-routing-domain {
+      prefix esnet-routing-domain;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Backbone Link Service";
+
+  grouping v4v6-addresses {
+    description "Backbone link endpoint attributes";
+
+    leaf ipv6-address {
+      type ietf-inet-types:ipv6-address;
+      mandatory true;
+      description "IPv6 address (/127)";
+    }
+    leaf ipv4-address {
+      type ietf-inet-types:ipv4-address;
+      mandatory true;
+      description "IPv4 address (/31)";
+    }
+  }
+
+  grouping admin-state-grp {
+    description "Admin-state attributes";
+    leaf admin-state {
+      type enumeration {
+        enum "no-config" {
+          value 0;
+          description "No config pushed";
+        }
+        enum "deployment" {
+          value 1;
+          description "Ports up, isis up, labels down, metrics 15123123";
+        }
+        enum "maintenance" {
+          value 2;
+          description "Ports up, isis up, labels up, metrics 15000000";
+        }
+        enum "in-service" {
+          value 3;
+          description "Ports up, isis up, labels up, metrics by formula";
+        }
+      }
+      mandatory true;
+      description "Administrative state";
+    }
+  }
+
+  grouping probe {
+    description "Value unit pair";
+    leaf value {
+      type decimal64 {
+        fraction-digits 4;
+      }
+      description "Value";
+    }
+    leaf unit {
+      type string;
+      description "Unit";
+    }
+  }
+
+  grouping interface-filter-names {
+    container interface-filter-names {
+      leaf ingress-ipv4 {
+        type string {
+         length "2..32";
+         pattern "[a-zA-Z0-9_-]+";
+        }
+        description "Ingress IPv4 filter name (2..32 chars)";
+      }
+      leaf ingress-ipv6 {
+        type string {
+         length "2..32";
+         pattern "[a-zA-Z0-9_-]+";
+        }
+        description "Ingress IPv6 filter name (2..32 chars)";
+      }
+      leaf egress-ipv4 {
+        type string {
+         length "2..32";
+         pattern "[a-zA-Z0-9_-]+";
+        }
+        description "Egress IPv4 filter name (2..32 chars)";
+      }
+      leaf egress-ipv6 {
+        type string {
+         length "2..32";
+         pattern "[a-zA-Z0-9_-]+";
+        }
+        description "Egress IPv6 filter name (2..32 chars)";
+      }
+      description "Filter names for ingress and egress";
+    }
+    description "Filter names for ingress and egress";
+  }
+
+  grouping bbl_member_ifces {
+    leaf port {
+      type leafref {
+        path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+      }
+
+      must "../../../flavor = 'management' " +
+      "or ../../../flavor = 'backbone'" +
+      "or ../../../flavor = 'irb-mgmt'" {
+        error-message "invalid flavor";
+      }
+
+      //when this port is in z (but short-circuit out if in a) validate eth-encap = dot1q
+      must "(local-name(../.) = 'a') " +
+        "or (/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../../z and esnet-port:ifce=current()]/esnet-port:eth-encap = 'dot1q') " {
+        error-message "Port must have eth-encap = 'dot1q'";
+      }
+
+      //when this port is in a (but short-circuit out if in z) validate eth-encap = dot1q
+      must "(local-name(../.) = 'z') " +
+        "or (/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../../a and esnet-port:ifce=current()]/esnet-port:eth-encap = 'dot1q')" {
+        error-message "Port must have eth-encap = 'dot1q'";
+      }
+
+      mandatory true;
+      description "Backbone link ports";
+    }
+    description "Backbone Link Member Interfaces";
+  }
+
+  grouping isis-interface-adj-sids {
+      leaf isis-ipv4-adjacency-sid {
+        type uint32;
+        description "IS-IS IPv4 interface adjacency SID value";
+      }
+      leaf isis-ipv6-adjacency-sid {
+        type uint64;
+        description "IS-IS IPv6 interface adjacency SID value";
+      }
+      description "Backbone Link IS-IS interface adjacency SIDs";
+  }
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+
+    list bbl {
+      must "count(layer3-circuit/name) > 0" {
+          error-message "At least one circuit is required";
+      }
+      must "a != z" {
+        error-message "A and Z devices must be different";
+      }
+
+      key name;
+      description "Backbone Link Configuration";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-bbl";
+
+      tailf-common:validate "bbl-validate-devices" {
+        tailf-common:dependency "a";
+        tailf-common:dependency "z";
+        tailf-common:dependency "layer3-circuit/a/port";
+        tailf-common:dependency "layer3-circuit/z/port";
+        tailf-common:dependency "layer3-circuit/ifce-letter-seq";
+      }
+
+      tailf-common:action ping-test {
+        tailf-common:actionpoint bbl-ping-test;
+        description "sends ICMP ECHO_REQUEST packets between all members of a circuit";
+        input {
+          leaf count {
+            type int32;
+            default 5;
+            description "Amount of ICMP packets / probes";
+          }
+          leaf ip-version {
+            type enumeration {
+              enum ipv6 {
+                value 0;
+                description "IPv6";
+              }
+              enum ipv4 {
+                value 1;
+                description "IPv4";
+              }
+            }
+            default ipv6;
+            description "IP protocol version";
+          }
+          leaf l3-circuit {
+            when "count(../../layer3-circuit/name) > 1";
+            type leafref {
+              path "../../layer3-circuit/name";
+            }
+            description "Test a specific layer 3 circuit";
+          }
+        }
+        output {
+          leaf circuit-name {
+            type string;
+            description "Name of the tested circuit";
+          }
+          leaf ping-status {
+            type boolean;
+            description "Status of the ping-test: true if ping-test succeded, false otherwise";
+          }
+          leaf error-msg {
+            type string;
+            description "Error message";
+          }
+          leaf tx-packets {
+            type int32;
+            description "Packets sent";
+          }
+          leaf rx-packets {
+            type int32;
+            description "Packets received";
+          }
+          container loss {
+            uses probe;
+            description "Packets loss";
+          }
+          container rtt-min {
+            uses probe;
+            description "Shortest RTT";
+          }
+          container rtt-avg {
+            uses probe;
+            description "Avarage RTT";
+          }
+          container rtt-max {
+            uses probe;
+            description "Longest RTT";
+          }
+          container rtt-stddev {
+            uses probe;
+            description "Standard RTT deviation";
+          }
+        }
+      }
+
+      tailf-common:action update-latency {
+        tailf-common:actionpoint bbl-update-latency;
+        description "automatically updates the IGP latency setting for the BBL";
+        input {
+          leaf override {
+            type enumeration {
+              enum security-check {
+                value 0;
+                description "Disables deviation security check";
+              }
+            }
+            description "Enable to ignore security check regarding previous value deviation";
+
+          }
+        }
+        output {
+          leaf update-status {
+            type boolean;
+            description "Status of the latency update: true if latency was updated, false otherwise";
+          }
+          leaf error-msg {
+            type string;
+            description "Error message";
+          }
+          leaf latency {
+            type int32;
+            description "Latency in ms";
+          }
+          leaf igp {
+            type int32;
+            description "Resulting IGP metric";
+          }
+        }
+      }
+
+      leaf name {
+        type string;
+        description "Service instance name";
+      }
+
+      leaf routing-domain {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+      leaf description {
+        type string;
+        description "Human-readable description";
+      }
+
+      leaf flavor {
+        type enumeration {
+          enum backbone {
+            value 0;
+            description "Backbone link (IS-IS, LDP, RSVP, MPLS)";
+          }
+          enum management {
+            value 1;
+            description "Management link (IS-IS only)";
+          }
+          enum irb-mgmt {
+            value 2;
+            description "IRB/SVI-based Management link (IS-IS Only)";
+          }
+        }
+        default backbone;
+        description "Link flavor, for router interface naming and protocols to be enabled.";
+      }
+
+      leaf bfd {
+        type enumeration {
+          enum regular {
+            value 0;
+            description "Regular interval (300ms), multiplier (x3)";
+          }
+          enum slow {
+            value 1;
+            description "Slower interval (500ms), multiplier (x5)";
+          }
+        }
+        default regular;
+        description "BFD multiplier / interval";
+      }
+
+      container igp {
+        leaf latency {
+          type uint32 {
+            range "1..1000";
+          }
+          mandatory true;
+          description "Latency (ms); IGP cost factor";
+        }
+
+        leaf custom-metric {
+          type uint64 {
+            range "1..16777215";
+          }
+          description "Custom metric; overrides latency-derived value when admin-state == in-service";
+        }
+
+        leaf preference {
+          type enumeration {
+            enum core {
+              value 0;
+              description "Core link; IGP cost multiplier: 1.0";
+            }
+            enum worst {
+              value 1;
+              description "Avoid this link; IGP cost multiplier: 5.0";
+            }
+            enum tail {
+              value 2;
+              description "Tail circuit; IGP cost multiplier: 5.0";
+            }
+            enum sea-cable {
+              value 3;
+              description "Sea cable; IGP cost multiplier: 1.2";
+            }
+            enum preferred {
+              value 4;
+              description "Prefer this link; IGP cost multiplier: 0.5";
+            }
+          }
+          default core;
+          description "IGP preference.";
+        }
+        description "IGP parameters";
+      }
+
+      leaf link-member-speed {
+        type uint32 {
+          range "0..1000000";
+        }
+        mandatory true;
+        description "Link member speed (Mbps) - used in IGP calculations";
+      }
+
+      leaf a {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:site-id != ''" {
+          error-message "Device must have a site-id";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router' or . = 'management-router']" {
+          error-message "Device must be a core or management router";
+        }
+        mandatory true;
+        description "Device A";
+      }
+
+      leaf z {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:site-id != ''" {
+          error-message "Device must have a site-id";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router' or . = 'management-router']" {
+          error-message "Device must be a core or management router";
+        }
+        mandatory true;
+        description "Device Z";
+      }
+
+      list layer3-circuit {
+        must "a/ipv4-address != z/ipv4-address" {
+          error-message "A and Z IPv4 addresses must be different";
+        }
+        must "a/ipv6-address != z/ipv6-address" {
+          error-message "A and Z IPv6 addresses must be different";
+        }
+
+        key name;
+        uses admin-state-grp;
+        description "Circuit list";
+
+        leaf name {
+          type string;
+          description "Circuit name (Z-number)";
+        }
+
+        tailf-common:validate "bbl-validate-vlan-port" {
+          tailf-common:dependency "vlan-id";
+          tailf-common:dependency "a/port";
+          tailf-common:dependency "z/port";
+        }
+
+        leaf vlan-id {
+          type uint32 {
+              range "0..4095";
+          }
+          default 6;
+          description "VLAN id";
+        }
+
+        // must be unique across all bbl instances per {a|z/device} -> {z|a/site} pairs
+        // (as well across all circuits on the same instance)
+        // enforced by python validate
+        // assigned by create callback if omitted
+        leaf ifce-letter-seq {
+          type string {
+            pattern "[a-z]";
+          }
+          must "count(../../layer3-circuit[ifce-letter-seq=current()]) = 1" {
+            error-message "Each layer3-circuit must have a different interface letter-seq";
+          }
+          mandatory true;
+          description "Router interface letter-seq (i.e. 'a')";
+        }
+
+        tailf-common:validate "bbl-validate-addrs" {
+          tailf-common:dependency "a/ipv4-address";
+          tailf-common:dependency "a/ipv6-address";
+          tailf-common:dependency "z/ipv4-address";
+          tailf-common:dependency "z/ipv6-address";
+        }
+
+        container a {
+          uses v4v6-addresses;
+          uses interface-filter-names;
+          uses bbl_member_ifces;
+          uses isis-interface-adj-sids;
+          description "A specific values";
+        }
+
+        container z {
+          uses v4v6-addresses;
+          uses interface-filter-names;
+          uses bbl_member_ifces;
+          uses isis-interface-adj-sids;
+          description "Z specific values";
+        }
+      }
+    }
+
+  }
+
+}

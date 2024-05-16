@@ -1,0 +1,98 @@
+module esnet-netflow-basecfg {
+  namespace "http://es.net/esnet-netflow-basecfg";
+  prefix esnet-netflow-basecfg;
+
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import esnet-routing-domain {
+    prefix esnet-routing-domain;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Netflow Base Configuration";
+
+  grouping server_address {
+    description "Netflow server parameters";
+    choice address {
+      mandatory true;
+      description "server address";
+
+      case ipv6 {
+        leaf ipv6-address {
+          type ietf-inet-types:ipv6-address;
+          description "Netflow server IPv6 address";
+        }
+      }
+      case ipv4 {
+        leaf ipv4-address {
+          type ietf-inet-types:ipv4-address;
+          description "Netflow server IPv4 address";
+        }
+      }
+    }
+  }
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+
+    list netflow-basecfg {
+      key device;
+      description "Netflow Base configuration";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-netflow-basecfg";
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+          error-message "Only core routers support netflow-basecfg";
+        }
+        description "Device to use";
+      }
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+      leaf routing-domain {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+      list flow-server {
+        key name;
+        min-elements 1;
+        description "Netflow server information";
+        leaf name {
+          type string;
+          description "Netflow server name";
+        }
+        leaf port {
+          type uint32;
+          description "Netflow destination port";
+        }
+        uses server_address;
+      }
+      list bgp-collector {
+        key name;
+        min-elements 1;
+        description "Netflow BGP collector information";
+        leaf name {
+          type string;
+          description "Netflow BGP collector name";
+        }
+        uses server_address;
+      }
+    }
+  }
+}

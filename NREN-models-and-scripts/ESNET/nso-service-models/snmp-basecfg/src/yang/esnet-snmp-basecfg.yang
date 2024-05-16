@@ -1,0 +1,107 @@
+module esnet-snmp-basecfg {
+
+  namespace "http://es.net/esnet-snmp-basecfg";
+
+  prefix esnet-snmp-basecfg;
+
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet SNMP Base Configuration";
+
+  grouping server_address {
+    description "SNMP trap destination parameters";
+    leaf ipv6-address {
+      type ietf-inet-types:ipv6-address;
+      description "SNMP trap destination IPv6 address";
+    }
+    leaf ipv4-address {
+      type ietf-inet-types:ipv4-address;
+      description "SNMP trap destination IPv4 address";
+    }
+  }
+  grouping server_prefix {
+    description "SNMP trap destination parameters";
+    leaf ipv6-prefix {
+      type ietf-inet-types:ipv6-prefix;
+      description "SNMP trap destination IPv6 prefix/prefix-length";
+    }
+    leaf ipv4-prefix {
+      type ietf-inet-types:ipv4-prefix;
+      description "SNMP trap destination IPv4 prefix/prefix-length";
+    }
+  }
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list snmp-basecfg {
+      key device;
+      description "SNMP configurations";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-snmp-basecfg";
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device to use";
+      }
+      leaf snmp-community {
+        type string;
+        mandatory true;
+        description "community string";
+      }
+      leaf longitude {
+        type decimal64 {
+          fraction-digits 8;
+          range "-180.00..180.00";
+        }
+        mandatory true;
+        description "Longitude";
+      }
+      leaf latitude {
+        type decimal64 {
+          fraction-digits 8;
+          range "-90.00..90.00";
+        }
+        mandatory true;
+        description "Latitude";
+      }
+      list trap-group {
+        key "id name";
+        min-elements 1;
+        description "snmp trap group information";
+        leaf name {
+          type string;
+          description "trap group name";
+        }
+        leaf id {
+          type uint32;
+          description "trap target id";
+        }
+        list trap-target {
+          must "count(./ipv6-address|./ipv4-address) = 1" {
+            error-message "Trap-target must have at least one of ipv4-address / ipv6-address ";
+          }
+          key name;
+          min-elements 1;
+          description "trap target information";
+          leaf name {
+            type string;
+            description "trap target name";
+          }
+          uses server_address;
+        }
+      }
+    }
+  }
+}

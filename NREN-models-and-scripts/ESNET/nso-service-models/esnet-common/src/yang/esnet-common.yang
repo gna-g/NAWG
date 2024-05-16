@@ -1,0 +1,85 @@
+module esnet-common {
+  namespace "http://es.net/esnet-common";
+  prefix esnet-common;
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Common YANG datatypes"; 
+
+  typedef device-role {
+    type enumeration {
+      enum core-router {
+          value 1;
+          description "core-router";
+      }
+      enum management-router {
+          value 2;
+          description "management-router";
+      }
+      enum aggregation-switch {
+          value 3;
+          description "aggregation-switch";
+      }
+      enum transponder {
+          value 4;
+          description "transponder";
+      }
+    }
+    description "Device role";
+  }
+
+  typedef device-network {
+    type enumeration {
+      enum netlab {
+          value 1;
+          description "netlab";
+      }
+      enum testbed {
+          value 2;
+          description "Testbed";
+      }
+      enum dc-east {
+          value 3;
+          description "East Coast Datacenter";
+      }
+      enum dc-west {
+          value 4;
+          description "West Coast Datacenter";
+      }
+      enum esnet5 {
+          value 5;
+          description "ESnet 5";
+      }
+      enum esnet6 {
+          value 6;
+          description "ESnet 6";
+      }
+    }
+    description "Device network";
+  }
+
+  augment /tailf-ncs:devices/tailf-ncs:device {
+    description "device augmentations";
+    leaf role {
+      type device-role;
+      description "Device role";
+    }
+
+    leaf network {
+      type device-network;
+      description "Device network";
+    }
+
+    leaf site-id {
+      type string;
+      description "Site id";
+    }
+    leaf orch-id {
+      type string;
+      description "Orchestrator id";
+    }
+  }
+}

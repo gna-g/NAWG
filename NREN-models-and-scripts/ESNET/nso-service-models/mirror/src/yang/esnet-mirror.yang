@@ -1,0 +1,242 @@
+module esnet-mirror {
+  namespace "http://es.net/esnet-mirror";
+  prefix esnet-mirror;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import esnet-host {
+    prefix esnet-host;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Traffic Mirroring Configuration";
+
+  augment /tailf-ncs:services {
+    list mirror {
+      key name;
+      unique "core-router service-id";
+      unique "core-router core-capture-port capture-vlan-id";
+      unique "mgmt-router analyzer-name";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-mirror";
+      description "ESnet traffic mirroring configuration";
+
+      tailf-common:validate "mirror-source-port-validate" {
+        tailf-common:dependency "source-port";
+      }
+
+      leaf name {
+        type string {
+          length "2..62";
+          pattern "[a-zA-Z][a-zA-Z0-9-]+";
+        }
+        description "Instance name";
+      }
+
+      leaf admin-state {
+        type enumeration {
+          enum up {
+              value 0;
+              description "Admin up; port no shutdown";
+          }
+          enum down {
+              value 1;
+              description "Admin down; port shutdown";
+          }
+          enum no-config {
+              value 2;
+              description "Config not pushed to devices.";
+          }
+        }
+        default up;
+        description "Admin state";
+      }
+
+      leaf router-type {
+        type enumeration {
+          enum core {
+              value 0;
+              description "Core router";
+          }
+          enum mgmt {
+              value 1;
+              description "Admin down; port shutdown";
+          }
+        }
+        default core;
+        description "Mirror router-type";
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+
+      uses mgmt-router-attrs;
+      uses core-router-attrs;
+    }
+    description "Services";
+  }
+
+  // these leafs all have when "router-type = mgmt"
+  grouping mgmt-router-attrs {
+    leaf mgmt-router {
+      when "../router-type = 'mgmt'";
+      type leafref {
+        path "/tailf-ncs:services/esnet-host:host/esnet-host:mgmt-router";
+      }
+      must "/tailf-ncs:services/esnet-host:host/esnet-host:type[. = 'zeek-mgt']" {
+        error-message "Must be a mgmt-router attached to a zeek-mgt host.";
+      }
+      mandatory true;
+      description "Management router";
+    }
+
+    leaf analyzer-name {
+      when "../router-type = 'mgmt'";
+      type string {
+        length "2..62";
+        pattern "[a-zA-Z][a-zA-Z0-9-]+";
+      }
+      mandatory true;
+      description "Analyzer name";
+    }
+
+    leaf mgmt-capture-port {
+      when "../router-type = 'mgmt'";
+      type leafref {
+        path "/tailf-ncs:services/esnet-host:host/esnet-host:mgmt-router-capture-port";
+      }
+      must "/tailf-ncs:services/esnet-host:host/esnet-host:mgmt-router[. = current()/../mgmt-router]" {
+        error-message "Port must belong to mgmt-router";
+      }
+      mandatory true;
+      description "Destination management router capture port";
+    }
+
+    leaf-list source-vlan {
+      when "../router-type = 'mgmt'";
+      type string;
+      description "Source VLAN (vlan_xxx) ";
+    }
+
+    leaf-list source-interface {
+      when "../router-type = 'mgmt'";
+      type string;
+      description "Source interface (ab-x/y/z or ab-x/y/z.w) ";
+    }
+    description "router-type mgmt leafs";
+
+  }
+
+  // these leafs all have when "router-type = core"
+  grouping core-router-attrs {
+    leaf core-router {
+      when "../router-type = 'core'";
+      type leafref {
+        path "/tailf-ncs:services/esnet-host:host/esnet-host:core-router";
+      }
+      must "/tailf-ncs:services/esnet-host:host/esnet-host:type[. = 'zeek-wan' or .= 'ht']" {
+        error-message "Must be a core-router attached to a zeek-wan or high-touch host.";
+      }
+      mandatory true;
+      description "Core router";
+    }
+
+    leaf service-id {
+      when "../router-type = 'core'";
+      type uint32 {
+          range "12000..12999";
+      }
+      description "Service id";
+    }
+
+    list source-sap {
+      when "../router-type = 'core'";
+      key sap;
+      leaf sap {
+        type string;
+        description "Source SAP (once per device)";
+      }
+      uses collect-grouping;
+      description "Source SAP list";
+    }
+
+    list source-port {
+      when "../router-type = 'core'";
+      key port;
+      leaf port {
+        type string;
+        description "Source port (once per device)";
+      }
+      uses collect-grouping;
+      description "Source port list";
+    }
+
+    leaf core-capture-port {
+      when "../router-type = 'core'";
+      type leafref {
+        path "/tailf-ncs:services/esnet-host:host/esnet-host:core-router-capture-port";
+      }
+      must "/tailf-ncs:services/esnet-host:host/esnet-host:core-router[. = current()/../core-router]" {
+        error-message "Port must belong to device";
+      }
+      mandatory true;
+      description "Destination core router capture port";
+    }
+
+    leaf capture-vlan-id {
+      when "../router-type = 'core'";
+      type uint32 {
+          range "0..4095";
+      }
+      mandatory true;
+      description "Capture VLAN id";
+    }
+
+    leaf slice {
+      when "../router-type = 'core'";
+      type boolean;
+      default true;
+      description "Enables slice settings";
+    }
+
+    leaf slice-size {
+      when "../router-type = 'core' and ../slice = 'true'";
+      type uint16 {
+        range "128..9216";
+      }
+      default 128;
+      description "Slice size";
+    }
+    description "router-type core leafs";
+  }
+
+  grouping collect-grouping {
+    leaf collect {
+      type enumeration {
+        enum ingress {
+          value 0;
+          description "Ingress";
+        }
+        enum egress {
+          value 1;
+          description "Egress";
+        }
+        enum both {
+          value 2;
+          description "Both ingress and egress";
+        }
+      }
+      default ingress;
+      description "Collect ingress (default), egress, or both";
+    }
+    description "Collect grouping";
+  }
+}

@@ -1,0 +1,407 @@
+module esnet-pbr-filter {
+  namespace "http://es.net/esnet-pbr-filter";
+  prefix esnet-pbr-filter;
+
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import ietf-yang-types {
+    prefix ietf-yang-types;
+  }
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-routing-domain {
+    prefix esnet-routing-domain;
+  }
+  import esnet-layer3 {
+    prefix esnet-layer3;
+  }
+  import esnet-bbl {
+    prefix esnet-bbl;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Policy-based Route Filter Service";
+
+  grouping filter-counters-route {
+    container route {
+      container v4 {
+        description "An IPv4 Policy-based Route";
+        leaf source {
+          type ietf-inet-types:ipv4-prefix;
+          description "Source IPv4 Network";
+        }
+        leaf destination {
+          type ietf-inet-types:ipv4-prefix;
+          description "Destination IPv4 Network";
+        }
+      }
+      container v6 {
+        description "An IPv6 Policy-based Route";
+        leaf source {
+          type ietf-inet-types:ipv6-prefix;
+          description "Source IPv6 Network";
+        }
+        leaf destination {
+          type ietf-inet-types:ipv6-prefix;
+          description "Destination IPv6 Network";
+        }
+      }
+      description "Simplified route for action output";
+    }
+    description "Simplified route for action output grouping";
+  }
+
+  grouping filter-counters-entry {
+    list entry {
+      key "entry-id";
+
+      leaf entry-id {
+        type uint16;
+        description "Entry ID within filter";
+      }
+      leaf packets {
+        type uint64;
+        description "Packets matched by this filter entry";
+      }
+      leaf bytes {
+        type uint64;
+        description "Bytes matched by this filter entry";
+      }
+      uses filter-counters-route;
+      description "Entries within a filter";
+    }
+    description "Filter counters for action output grouping";
+  }
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list pbr-filter {
+      key "uuid";
+      unique "device ingress/interface/bbl-interface/l3-circuit";
+      unique "device ingress/interface/l3-interface/l3-interface";
+      unique "device egress/interface/bbl-interface/l3-circuit";
+      unique "device egress/interface/l3-interface/l3-interface";
+      unique "device ingress/filter-id";
+      unique "device egress/filter-id";
+      unique "pbr-instance order";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-pbr-filter";
+      description "List of PBR Filters";
+
+      tailf-common:validate "pbr-filter-next-hop-validate" {
+        tailf-common:dependency "egress/next-hop";
+        tailf-common:dependency "egress/l3-interface";
+      }
+
+      leaf description {
+        type string;
+        mandatory true;
+        description "Description of PBR Filter";
+      }
+
+      leaf pbr-instance {
+        type string;
+        description "PBR loop instance this filter belongs to";
+      }
+
+      leaf order {
+        type uint8;
+        description "Order that this filter is used in a single PBR loop";
+      }
+
+      leaf user {
+        type string;
+        description "Username of user performing the test";
+      }
+
+      leaf routing-domain {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router'] or /tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'management-router']" {
+          error-message "Device must be a core router or MPR";
+        }
+        mandatory true;
+        description "The device to apply a PBR filter to";
+      }
+
+      leaf uuid {
+        type ietf-yang-types:uuid;
+        mandatory true;
+        description "UUID that can be used to uniquely identify this PBR";
+      }
+
+      // In python, we can use these objects to try and derive what the next-hop (in the PBR template) will be.
+      container ingress {
+        description "Layer 3 Router Virtual Interface traffic will come in on";
+        choice interface {
+          mandatory true;
+          description "L3 Logical Interface to apply the filter to";
+          case bbl-interface {
+            leaf bbl {
+              type leafref {
+                path "/tailf-ncs:services/esnet-bbl:bbl/esnet-bbl:name";
+              }
+              must "/tailf-ncs:services/esnet-bbl:bbl[esnet-bbl:name=current()]/esnet-bbl:a=../../device or /tailf-ncs:services/esnet-bbl:bbl[esnet-bbl:name=current()]/esnet-bbl:z=../../device";
+              description "Reference to a BBL that includes the next-hop interface";
+            }
+            leaf l3-circuit {
+              type leafref {
+                path "/tailf-ncs:services/esnet-bbl:bbl/esnet-bbl:layer3-circuit/esnet-bbl:name";
+              }
+              must "/tailf-ncs:services/esnet-bbl:bbl[esnet-bbl:name=/tailf-ncs:services/esnet-pbr-filter:pbr-filter[uuid=current()/../../uuid]/ingress/bbl]/esnet-bbl:layer3-circuit[esnet-bbl:name=current()]";
+              description "Reference to a l3-circuit that includes the next-hop interface";
+            }
+          }
+          case l3-interface {
+            leaf l3-interface {
+              type leafref {
+                path "/tailf-ncs:services/esnet-layer3:l3-interface[esnet-layer3:device=current()/../../device]/esnet-layer3:service-edge";
+              }
+              description "Reference to an l3-interface that includes the next-hop interface";
+            }
+          }
+        }
+        leaf filter-id {
+          type uint16 {
+            range "33000..33999";
+          }
+          must "../../egress/filter-id != current()" {
+            error-message "Filter ID must be unique";
+          }
+          must "current() mod 2 = 0" {
+            error-message "Ingress filter ID must be even";
+          }
+          mandatory true;
+          description "Filter ID to apply to interface";
+        }
+      }
+
+      container egress {
+        description "Layer 3 Router Virtual Interface traffic will exit via";
+        choice interface {
+          mandatory true;
+          description "L3 Logical Interface to apply the filter to";
+          case bbl-interface {
+            leaf bbl {
+              type leafref {
+                path "/tailf-ncs:services/esnet-bbl:bbl/esnet-bbl:name";
+              }
+              must "/tailf-ncs:services/esnet-bbl:bbl[esnet-bbl:name=current()]/esnet-bbl:a=../../device or /tailf-ncs:services/esnet-bbl:bbl[esnet-bbl:name=current()]/esnet-bbl:z=../../device";
+              description "Reference to a BBL that includes the next-hop interface";
+            }
+            leaf l3-circuit {
+              type leafref {
+                path "/tailf-ncs:services/esnet-bbl:bbl/esnet-bbl:layer3-circuit/esnet-bbl:name";
+              }
+              must "/tailf-ncs:services/esnet-bbl:bbl[esnet-bbl:name=/tailf-ncs:services/esnet-pbr-filter:pbr-filter[uuid=current()/../../uuid]/egress/bbl]/esnet-bbl:layer3-circuit[esnet-bbl:name=current()]";
+              description "Reference to a l3-circuit that includes the next-hop interface";
+            }
+          }
+          case l3-interface {
+            leaf l3-interface {
+              type leafref {
+                path "/tailf-ncs:services/esnet-layer3:l3-interface[esnet-layer3:device=current()/../../device]/esnet-layer3:service-edge";
+              }
+              description "Reference to an l3-interface that includes the next-hop interface";
+            }
+          }
+        }
+        leaf next-hop {
+          when "count(../l3-interface) > 0 " +
+            " and not( " +
+            " contains(/tailf-ncs:services/esnet-layer3:l3-interface[esnet-layer3:device=current()/../../device and esnet-layer3:service-edge=current()/../l3-interface]/esnet-layer3:v4/esnet-layer3:address, '/30') " +
+            " or contains(/tailf-ncs:services/esnet-layer3:l3-interface[esnet-layer3:device=current()/../../device and esnet-layer3:service-edge=current()/../l3-interface]/esnet-layer3:v4/esnet-layer3:address, '/31') " +
+            ")";
+          type ietf-inet-types:ip-address;
+          mandatory true;
+          description "Next hop";
+        }
+        leaf filter-id {
+          type uint16 {
+           range "33000..33999";
+          }
+          must "../../ingress/filter-id != current()" {
+            error-message "Filter ID must be unique";
+          }
+          must "current() mod 2 = 1" {
+            error-message "Egress filter ID must be odd";
+          }
+          mandatory true;
+          description "Filter ID to apply to interface";
+        }
+      }
+
+      list routes {
+        key "description";
+        min-elements 1;
+        description "description";
+        leaf description {
+          type string;
+          description "description";
+        }
+        container route {
+          must "count(v4) + count(v6) > 0" {
+            error-message "Must configure at least one of [ v4, v6 ]";
+          }
+          description "A policy based route for IPv4, IPv6, or one of each.";
+
+          container v4 {
+            must "destination != source"{
+              error-message "Destination and source address cannot be the same!";
+            }
+            presence v4;
+            description "An IPv4 Policy-based Route";
+            leaf source {
+              type ietf-inet-types:ipv4-prefix;
+              mandatory true;
+              description "Source IPv4 Network";
+            }
+            leaf destination {
+              type ietf-inet-types:ipv4-prefix;
+              mandatory true;
+              description "Destination IPv4 Network";
+            }
+            leaf ip-protocol {
+              type uint8 {
+                range 1..254;
+              }
+              default 254;
+              description "IPv4 Protocol Number";
+            }
+          }
+          container v6 {
+            must "destination != source"{
+              error-message "Destination and source address cannot be the same!";
+            }
+            presence v6;
+            description "An IPv6 Policy-based Route";
+            leaf source {
+              type ietf-inet-types:ipv6-prefix;
+              mandatory true;
+              description "Source IPv6 Network";
+            }
+            leaf destination {
+              type ietf-inet-types:ipv6-prefix;
+              mandatory true;
+              description "Destination IPv6 Network";
+            }
+            leaf next-header {
+              type uint8 {
+                range 1..254;
+              }
+              default 254;
+              description "IPv6 Next Header Protocol Number";
+            }
+          }
+        }
+      }
+    }
+    tailf-common:action pbr-filter-live-counters {
+      tailf-common:actionpoint pbr-filter-live-counters;
+      input {
+        leaf pbr-filter-uuid {
+          type ietf-yang-types:uuid;
+          mandatory true;
+          description "UUID of pbr-filter to collect counters from";
+        }
+        leaf mock_results {
+          type boolean;
+          default false;
+          description "Use mock results for testing and demo";
+        }
+      }
+      output {
+        leaf pbr-filter-uuid {
+          type ietf-yang-types:uuid;
+          description "pbr-filter UUID for these counters";
+        }
+        leaf status {
+          type enumeration {
+            enum success {
+              value 0;
+              description "success";
+            }
+            enum fail {
+              value 1;
+              description "fail";
+            }
+          }
+          description "Success or fail from gathering counters";
+        }
+        leaf fail-reason {
+          type string;
+          description "Error message on failure";
+        }
+        container ingress {
+          leaf filter-id {
+            type uint16;
+            description "Filter ID";
+          }
+          uses filter-counters-entry;
+          description "pbr-filter ingress related values";
+        }
+        container egress {
+          leaf filter-id {
+            type uint16;
+            description "Filter ID";
+          }
+          uses filter-counters-entry;
+          description "pbr-filter egress related values";
+        }
+      }
+    }
+    tailf-common:action pbr-filter-live-counters-clear {
+      tailf-common:actionpoint pbr-filter-live-counters-clear;
+      input {
+        leaf pbr-filter-uuid {
+          type ietf-yang-types:uuid;
+          mandatory true;
+          description "UUID of pbr-filter to clear counters for";
+        }
+        leaf mock_results {
+          type boolean;
+          default false;
+          description "Use mock results for testing and demo";
+        }
+      }
+      output {
+        leaf status {
+          type enumeration {
+            enum success {
+              value 0;
+              description "success";
+            }
+            enum fail {
+              value 1;
+              description "fail";
+            }
+          }
+          description "Success or fail from clearing counters";
+        }
+        leaf fail-reason {
+          type string;
+          description "Error message on failure";
+        }
+      }
+    }
+  }
+}
