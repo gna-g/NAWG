@@ -1,0 +1,513 @@
+module esnet-port {
+  namespace "http://es.net/esnet-port";
+  prefix esnet-port;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import ietf-yang-types {
+    prefix ietf-yang-types;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Port Service";
+
+  grouping vlan-assignments {
+    list assigned {
+      key vlan-id;
+      leaf vlan-id {
+        type uint32 {
+            range "0..4095";
+        }
+        description "VLAN id";
+      }
+      list service {
+        key "service-type instance";
+        leaf service-type {
+          type enumeration {
+            enum bbl {
+              value 0;
+              description "BBL";
+            }
+            enum bridge {
+              value 1;
+              description "Bridge";
+            }
+            enum l2vpn {
+              value 2;
+              description "L2VPN";
+            }
+            enum l3vpn {
+              value 3;
+              description "L3VPN";
+            }
+            enum mirror {
+              value 4;
+              description "Port mirror egress";
+            }
+          }
+          description "Service assigning the VLAN";
+        }
+        leaf instance {
+          type string;
+          description "Instance name";
+        }
+        description "Services associated with the VLAN";
+      }
+      description "Assigned VLANs";
+    }
+    list reserved-range {
+      must "./start <= ./end";
+      key "start end";
+      leaf start {
+        type uint32 {
+            range "0..4095";
+        }
+        description "Start of reserved range";
+      }
+      leaf end {
+        type uint32 {
+            range "0..4095";
+        }
+        description "End of reserved range";
+      }
+      description "Reserved VLAN ranges (not usable by NSO services)";
+    }
+    description "VLAN assignments";
+  }
+
+  grouping fec-modes {
+    leaf fec-mode {
+      type enumeration {
+        enum auto {
+            value 0;
+            description "use equipment default";
+        }
+        enum cl91 {
+            value 1;
+            description "FEC Clause 91";
+        }
+      }
+      default auto;
+      description "Ethernet FEC mode";
+    }
+    description "Ethernet FEC modes";
+  }
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list port {
+      must "not(fec-mode != 'auto' and lag/lag-id )" {
+        error-message "fec-mode cannot be set on root lag interface, and must be set on lag interface members instead";
+      }
+      key "device ifce";
+
+      unique "device lag/lacp-admin-key";
+      unique "device lag/lag-id";
+
+      description "List of port service instances";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-port";
+
+      tailf-common:validate "port-ifce-validate" {
+        tailf-common:dependency "ifce";
+        tailf-common:dependency "lag/member/name";
+      }
+
+      tailf-common:validate "port-vlan-validate" {
+        tailf-common:dependency "type";
+        tailf-common:dependency "eth-encap";
+        tailf-common:dependency "vlan/assigned/vlan-id";
+        tailf-common:dependency "vlan/reserved-range/start";
+        tailf-common:dependency "vlan/reserved-range/end";
+      }
+
+      tailf-common:validate "qos-validate" {
+        tailf-common:dependency "mode";
+        tailf-common:dependency "qos";
+      }
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device";
+      }
+
+      leaf ifce {
+        type string;
+        description "Interface/port name";
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+
+      leaf is-bridge-member {
+        type boolean;
+        tailf-common:hidden full;
+        default false;
+        description "Whether the port is a member of a layer 2 bridge.";
+      }
+
+      leaf link-type {
+        type enumeration {
+          enum unconstrained {
+            value 1;
+            description "Link type not determined - may be used by any service.";
+          }
+          enum internal {
+            value 2;
+            description "Link to an internal host. May be used by host, vpls and bridge services.";
+          }
+          enum external {
+            value 3;
+            description "Link to a customer connection. May be used by layer3 and vpls services.";
+          }
+          enum downlink {
+            value 4;
+            description "From a core router to a management router. May be used by layer3, vpls and bbl services.";
+          }
+          enum uplink {
+            value 5;
+            description "From a management router to a core router. May be used by bbl and bridge services.";
+          }
+          enum crosslink {
+            value 6;
+            description "From a core router to another core router, or (rarely) from a management router to a management router. May be used by bbl and bridge services.";
+          }
+        }
+        default unconstrained;
+        description "interface link type";
+      }
+
+      uses fec-modes;
+
+      leaf speed {
+        type int64 {
+          range "10..100000000";
+        }
+        default 10000;
+        description "Speed of the interface in Mbps, allowing values from 10 Mbps to 100 Tbps. Defaults to 10 Gbps.";
+      }
+
+      leaf eth-encap {
+        when "../type = 'ethernet'";
+        type enumeration {
+          enum access {
+            value 0;
+            description "Access mode";
+          }
+          enum dot1q {
+            value 1;
+            description "802.1q";
+          }
+        }
+        default dot1q;
+        description "Ethernet encapsulation";
+      }
+
+      leaf junos-vlan-tagging {
+        type boolean;
+        default true;
+        description "Decides if we want vlan-tagging enabled (for FES)";
+      }
+
+      leaf type {
+        type enumeration {
+          enum not-ethernet {
+            value 0;
+            description "Not an ethernet port";
+          }
+          enum ethernet {
+            value 1;
+            description "Ethernet";
+          }
+        }
+        default ethernet;
+        description "Port type (ethernet or not)";
+      }
+
+      leaf mode {
+        type enumeration {
+          enum access {
+            value 0;
+            description "Access-only port";
+          }
+          enum hybrid {
+            value 1;
+            description "Hybrid port";
+          }
+          enum network {
+            value 2;
+            description "Network port";
+          }
+        }
+        default hybrid;
+        description "Port mode (access / hybrid / network) - for nokias only";
+      }
+
+      leaf lldp {
+        type enumeration {
+          enum enable {
+            value 0;
+            description "Enable LLDP";
+          }
+          enum disable {
+            value 1;
+            description "Disable LLDP";
+          }
+        }
+        default enable;
+        description "Enable / disable LLDP";
+      }
+
+      leaf holdtime {
+        type enumeration {
+          enum none {
+            value 0;
+            description "No hold-time";
+          }
+          enum ols {
+            value 1;
+            description "Hold-time for OLS (1 second down / 100ms up)";
+          }
+        }
+        default none;
+        description "Ethernet hold-time";
+      }
+
+      leaf nokia-report-alarm {
+        type enumeration {
+          enum none {
+            value 0;
+            description "No report-alarm config";
+          }
+          enum minimal {
+            value 10;
+            description "Minimal report-alarm config (supported on all port types).";
+          }
+          enum extended {
+            value 20;
+            description "Minimal report-alarm config (not supported on certain breakout ports).";
+          }
+        }
+        default minimal;
+        description "Nokia report-alarm mode";
+      }
+
+      leaf mtu {
+        type uint16 {
+          range "512..9212";
+        }
+        default 9212;
+        description "Ethernet MTU";
+      }
+
+      leaf custom-mac {
+        type ietf-yang-types:mac-address;
+        description "Custom MAC address";
+      }
+
+      container qos {
+        leaf mode {
+          type enumeration {
+            enum network-default {
+                value 0;
+                description "Use the default port QoS settings for the network";
+            }
+            enum service {
+                value 1;
+                description "Set by service (l2vpn, etc)";
+            }
+            enum no-config {
+                value 2;
+                description "Not configured";
+            }
+          }
+          default network-default;
+          description "QoS mode";
+        }
+        leaf service-qos {
+          when "../mode = 'service'";
+          type string;
+          mandatory true;
+          description "Service-assigned QoS";
+        }
+        description "QoS parameters";
+      }
+
+      leaf description {
+        type string {
+          length "0..120";
+          pattern "[ a-zA-Z0-9()>:_-]+";
+        }
+
+        description "port description string";
+      }
+
+      container vlan {
+        uses vlan-assignments;
+        description "VLAN attributes";
+      }
+
+      leaf admin-state {
+        type enumeration {
+          enum up {
+              value 0;
+              description "Admin up; port no shutdown";
+          }
+          enum down {
+              value 1;
+              description "Admin down; port shutdown";
+          }
+          enum no-config {
+              value 2;
+              description "Config not pushed to devices.";
+          }
+        }
+        default up;
+        description "Admin state";
+      }
+      container legacy-ethernet {
+        leaf auto-negotiation {
+          type enumeration {
+            enum yes {
+                value 0;
+                description "Yes (default)";
+            }
+            enum no {
+                value 1;
+                description "No; can set speed and link-mode";
+            }
+          }
+          default yes;
+          description "Link auto-negotiation";
+        }
+
+        leaf speed {
+          when "../auto-negotiation = 'no'";
+          type enumeration {
+            enum auto {
+                value 0;
+                description "auto";
+            }
+            enum 10m {
+                value 10;
+                description "10m";
+            }
+            enum 100m {
+                value 100;
+                description "100m";
+            }
+            enum 1g {
+                value 1000;
+                description "1g";
+            }
+            enum 10g {
+                value 10000;
+                description "10g";
+            }
+          }
+          default auto;
+          description "Explicit port speed";
+        }
+
+        leaf link-mode {
+          when "../auto-negotiation = 'no'";
+          type enumeration {
+            enum automatic {
+                value 1;
+                description "automatic";
+            }
+            enum full-duplex {
+                value 2;
+                description "Full duplex";
+            }
+            enum half-duplex {
+                value 3;
+                description "Half duplex";
+            }
+          }
+          default automatic;
+          description "Explicit link mode";
+        }
+        description "Legacy ethernet attributes; apply to Juniper only";
+      }
+
+      container lag {
+        presence true;
+        description "Link aggregation parameters";
+        list member {
+          key name;
+          description "Member interfaces";
+          leaf name {
+            type string;
+            description "Lag member interface name";
+          }
+          leaf description {
+            type string {
+              length "0..120";
+              pattern "[ a-zA-Z0-9()>:_-]+";
+            }
+            description "Lag member port description string";
+          }
+          leaf admin-state {
+            type enumeration {
+              enum up {
+                  value 0;
+                  description "Admin up; port no shutdown";
+              }
+              enum down {
+                  value 1;
+                  description "Admin down; port shutdown";
+              }
+            }
+            default up;
+            description "Admin state";
+          }
+          uses fec-modes;
+        }
+
+        leaf lag-id {
+          type uint32 {
+            range "0..800";
+          }
+
+          mandatory true;
+          description "Integer LAG id";
+        }
+
+        leaf lacp-mode {
+          type enumeration {
+            enum active {
+              value 0;
+              description "Active mode";
+            }
+            enum passive {
+              value 1;
+              description "Passive mode";
+            }
+            enum none {
+              value 2;
+              description "No LACP";
+            }
+          }
+          default active;
+          description "LACP mode";
+        }
+
+        leaf lacp-admin-key {
+          type uint16;
+          description "Admin key";
+        }
+      }
+
+    }
+  }
+}

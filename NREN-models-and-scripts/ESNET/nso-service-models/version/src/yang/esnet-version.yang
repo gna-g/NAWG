@@ -1,0 +1,24 @@
+module esnet-version {
+  namespace "http://es.net/esnet-version";
+  prefix esnet-version;
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet NSO Version Service";
+
+  list version {
+    key "name";
+    config false;
+    description "System version information";
+
+    leaf name {
+      type string;
+      description "The name of the version entry";
+    }
+
+    leaf value {
+      type string;
+      description "The value of the version";
+    }
+  }
+}

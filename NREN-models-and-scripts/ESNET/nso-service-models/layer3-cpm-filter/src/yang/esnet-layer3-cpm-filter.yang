@@ -1,0 +1,56 @@
+module esnet-layer3-cpm-filter {
+  namespace "http://es.net/esnet-layer3-cpm-filter";
+  prefix esnet-layer3-cpm-filter;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-routing-domain {
+    prefix esnet-routing-domain;
+  }
+
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet CPM Filter Service for L3VPN";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list layer3-cpm-filter {
+      key "routing-domain route-table device";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-layer3-cpm-filter";
+      description "CPM filter for L3VPN";
+
+      leaf routing-domain {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+
+      leaf route-table {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:bgp/esnet-routing-domain:route-table/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Route table name";
+      }
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+          error-message "Device must be a core router";
+        }
+        mandatory true;
+        description "The device to apply a CPM filter extension for the L3VPN to";
+      }
+    }
+  }
+}

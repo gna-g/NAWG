@@ -1,0 +1,442 @@
+module esnet-shared {
+
+  namespace "http://es.net/esnet-shared";
+  prefix esnet-shared;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-layer3 {
+    prefix esnet-layer3;
+  }
+  import esnet-routing-domain {
+    prefix esnet-routing-domain;
+  }
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Shared Services";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list bgp-community {
+      key name;
+
+      leaf name {
+        type string {
+          length "2..32";
+          pattern "[a-zA-Z0-9-]+";
+        }
+        description "Community name";
+      }
+
+      leaf-list member {
+        type string {
+          length "1..32";
+        }
+        description "Community members";
+      }
+
+      leaf-list device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router' ]" {
+          error-message "Device must be a core router";
+        }
+        description "Devices to deploy to";
+      }
+
+      description "BGP community entries";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-bgp-community";
+
+    }
+
+    list filter-prefix-list {
+      key name;
+
+      leaf name {
+        type string {
+          length "2..32";
+          pattern "[a-zA-Z0-9-]+";
+        }
+        description "Filter-prefix-list name";
+      }
+
+      leaf-list device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router' ]" {
+          error-message "Device must be a core router";
+        }
+        description "Devices to deploy to";
+      }
+
+      choice family-choice {
+        case case-v4 {
+          container v4 {
+            presence v4;
+            leaf-list prefix {
+              type ietf-inet-types:ipv4-prefix;
+              description "IPv4 prefix";
+            }
+            description "IPv4 prefixes";
+          }
+        }
+        case case-v6 {
+          container v6 {
+            presence v6;
+            leaf-list prefix {
+              type ietf-inet-types:ipv6-prefix;
+              description "IPv6 prefix";
+            }
+            description "IPv6 prefixes";
+          }
+        }
+        description "a filter-prefix-list is either v4 or v6";
+      }
+
+      description "Filter prefix-list entries";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-filter-prefix-list";
+    }
+
+    list connected-routes {
+      key device;
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router' ]" {
+          error-message "Device must be a core router";
+        }
+        description "Device";
+      }
+      list entry {
+        key entry-id;
+        unique "l3-interface";
+        leaf entry-id {
+          type uint32 {
+            range "40000..49999";
+          }
+          description "connected-routes entry number (for Nokia)";
+        }
+        uses localpref;
+        leaf asn {
+          type ietf-inet-types:as-number;
+          description "ASN to prepend";
+        }
+
+        leaf bgp-community {
+          type leafref {
+            path "/tailf-ncs:services/esnet-shared:bgp-community/esnet-shared:name";
+          }
+          description "BGP community name to add";
+        }
+
+        leaf l3-interface {
+          type leafref {
+            path "/tailf-ncs:services/esnet-layer3:l3-interface[esnet-layer3:device=current()/../../device]/esnet-layer3:service-edge";
+          }
+          mandatory true;
+          description "Layer 3 interface";
+        }
+
+        leaf routing-domain {
+          type leafref {
+            path "/tailf-ncs:services/esnet-routing-domain:routing-domain-member[esnet-routing-domain:device=current()/../../device]/esnet-routing-domain:routing-domain";
+          }
+          mandatory true;
+          description "routing domain";
+        }
+
+        leaf route-table {
+          type leafref {
+            path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:bgp/esnet-routing-domain:route-table/esnet-routing-domain:name";
+          }
+          mandatory true;
+          description "route table";
+        }
+
+        description "Device connected-route entries";
+      }
+
+      description "Connected routes entries";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-connected-routes";
+    }
+
+    list prefix-list {
+      key "device name";
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device";
+      }
+      leaf name {
+        type string {
+          length "2..24";
+          pattern "[a-zA-Z0-9_-]+";
+        }
+        description "Prefix list name";
+      }
+
+      uses prefix-list-meta;
+
+      list v4 {
+        key prefix;
+        uses match-enum-grouping;
+        uses v4-match-attrs;
+        leaf prefix {
+          type ietf-inet-types:ipv4-prefix;
+          mandatory true;
+          description "IPv4 prefix";
+        }
+        description "IPv4 prefixes";
+      }
+      list v6 {
+        key prefix;
+        uses match-enum-grouping;
+        uses v6-match-attrs;
+        leaf prefix {
+          type ietf-inet-types:ipv6-prefix;
+          mandatory true;
+          description "IPv6 prefix";
+        }
+        description "IPv6 prefixes";
+      }
+      description "Prefix lists";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-prefix-list";
+    }
+
+
+    list nokia-service-registry {
+      tailf-common:validate "shared-validate-nsr" {
+        tailf-common:dependency "service-id";
+        tailf-common:dependency "service-type";
+      }
+      tailf-common:hidden full;
+      key "device service-id";
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device";
+      }
+      leaf service-id {
+        type uint32 {
+          range "1..2147483647";
+        }
+        description "Service id";
+      }
+      uses service-type-grouping;
+      description "Nokia service id";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-nokia-service-registry";
+    }
+  }
+
+  grouping service-type-grouping {
+    leaf service-type {
+      type enumeration {
+        enum ies {
+          value 1;
+          description "IES (2..99)";
+        }
+        enum vprn {
+          value 2;
+          description "VPRN (100..199, 293, 20100..20199)";
+        }
+        enum vpls {
+          value 3;
+          description "VPLS (6000..7999)";
+        }
+        enum evpn {
+          value 4;
+          description "EVPN (8000..9999)";
+        }
+        enum mirror {
+          value 5;
+          description "Mirror (12000..12999)";
+        }
+      }
+      mandatory true;
+      description "Service type";
+    }
+    description "Service type grouping";
+  }
+
+  grouping localpref {
+    leaf localpref {
+      type enumeration {
+        enum 22 {
+          value 22;
+          description "22";
+        }
+        enum 50 {
+          value 50;
+          description "50";
+        }
+        enum 1000 {
+          value 1000;
+          description "1000";
+        }
+        enum 1900 {
+          value 1900;
+          description "1900";
+        }
+        enum 2000 {
+          value 2000;
+          description "2000";
+        }
+        enum 2900 {
+          value 2900;
+          description "2900";
+        }
+        enum 3000 {
+          value 3000;
+          description "3000";
+        }
+        enum 3100 {
+          value 3100;
+          description "3100";
+        }
+        enum 3900 {
+          value 3900;
+          description "3900";
+        }
+        enum 4000 {
+          value 4000;
+          description "4000";
+        }
+        enum 4100 {
+          value 4100;
+          description "4100";
+        }
+        enum 6000 {
+          value 6000;
+          description "6000";
+        }
+        enum 9900 {
+          value 9900;
+          description "9900";
+        }
+        enum 10000 {
+          value 10000;
+          description "10000";
+        }
+      }
+      mandatory true;
+      description "Local preference";
+    }
+    description "Localpref grouping";
+  }
+
+  grouping prefix-list-meta {
+    leaf orch-id {
+      type string;
+      description "Orchestrator id";
+    }
+    leaf creator {
+      type string;
+      description "Creator instance";
+    }
+    description "Prefix list metadata grouping";
+  }
+
+  grouping match-enum-grouping {
+    leaf match {
+      type enumeration {
+        enum exact {
+          value 1;
+          description "Exact";
+        }
+        enum through {
+          value 2;
+          description "Through";
+        }
+        enum longer {
+          value 3;
+          description "Longer";
+        }
+        enum range {
+          value 4;
+          description "Use a prefix length range";
+        }
+      }
+      default exact;
+      description "Prefix match mode";
+    }
+    description "Prefix List Match Grouping";
+  }
+
+  grouping v4-match-attrs {
+    leaf through-length {
+      when "current()/../match = 'through'";
+      type uint8 {
+        range 0..32;
+      }
+      mandatory true;
+      description "Through length";
+    }
+    leaf range-start {
+      when "current()/../match = 'range'";
+      type uint8 {
+        range 0..32;
+      }
+      mandatory true;
+      description "Prefix length range start";
+    }
+    leaf range-end {
+      when "current()/../match = 'range'";
+      type uint8 {
+        range 0..32;
+      }
+      must "current() >= current()/../range-start";
+      mandatory true;
+      description "Prefix length range end";
+    }
+    description "IPv4 match attributes";
+  }
+
+  grouping v6-match-attrs {
+    leaf through-length {
+      when "current()/../match = 'through'";
+      type uint8 {
+        range 0..128;
+      }
+      mandatory true;
+      description "Through length";
+    }
+    leaf range-start {
+      when "current()/../match = 'range'";
+      type uint8 {
+        range 0..128;
+      }
+      mandatory true;
+      description "Prefix length range start";
+    }
+    leaf range-end {
+      when "current()/../match = 'range'";
+      type uint8 {
+        range 0..128;
+      }
+      must "current() >= current()/../range-start";
+      mandatory true;
+      description "Prefix length range end";
+    }
+    description "IPv6 match attributes";
+  }
+}

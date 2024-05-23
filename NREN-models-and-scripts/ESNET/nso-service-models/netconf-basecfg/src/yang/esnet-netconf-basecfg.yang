@@ -1,0 +1,35 @@
+module esnet-netconf-basecfg {
+  namespace "http://es.net/esnet-netconf-basecfg";
+  prefix esnet-netconf-basecfg;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet NETCONF Service";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list netconf-basecfg {
+      key device;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-netconf-basecfg";
+      description "NETCONF service";
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device to use";
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+    }
+  }
+}

@@ -1,0 +1,167 @@
+module observability-exporter {
+  yang-version "1.1";
+
+  namespace "http://tail-f.com/ns/observability-exporter";
+  prefix observability-exporter;
+
+  import ietf-inet-types {
+    prefix inet;
+  }
+  import tailf-common {
+    prefix tailf;
+  }
+  import tailf-ncs {
+    prefix ncs;
+  }
+  import tailf-progress {
+    prefix progress;
+  }
+
+  description
+    "Configuration of the Observability exporter";
+
+  augment "/progress:progress" {
+    description "Augment in ptrace export configuration";
+
+    container export {
+      description "Export progress-trace to external systems";
+
+      leaf enabled {
+        type boolean;
+        default true;
+        description "Enable the export processor";
+      }
+
+      leaf include-diffset {
+        type boolean;
+        default false;
+        description
+          "This will include the diffset of committed transactions in the"
+          + "exported data. It has performance implications.";
+      }
+
+      action restart {
+        tailf:actionpoint "ptrace-export-restart";
+        output {
+          leaf result {
+            type string;
+            description "Result";
+          }
+        }
+      }
+
+      action restart-reader {
+        tailf:actionpoint "ptrace-reader-restart";
+        output {
+          leaf result {
+            type string;
+            description "Restart consumer process of NSO notifications";
+          }
+        }
+      }
+
+      container influxdb {
+        presence influxdb;
+        description "Export metrics derived from progress-trace to InfluxDB";
+
+        leaf host {
+          type inet:host;
+          mandatory true;
+          description "InfluxDB host to export metrics to";
+        }
+
+        leaf port {
+          type inet:port-number;
+          default 8086;
+          description "InfluxDB port to export metrics to";
+        }
+
+        leaf username {
+          type string;
+          description "InfluxDB username";
+        }
+
+        leaf password {
+          type tailf:aes-256-cfb-128-encrypted-string;
+          description "InfluxDB password";
+        }
+
+        leaf database {
+          type string;
+          default "nso";
+          description "InfluxDB database name";
+        }
+
+      }
+
+      container otlp {
+        presence otlp;
+        description "Export trace information to an OTLP collector";
+
+        leaf host {
+          type inet:host;
+          default "localhost";
+          description "Collector endpoint host to send trace information to";
+        }
+
+        leaf port {
+          type inet:port-number;
+          description "Collector endpoint port to send trace information to. Defaults to 4318"
+            + "for 'http' protocol and 4317 for 'grpc' protocol";
+        }
+
+        leaf transport {
+          type enumeration {
+            enum "http" {
+              description "Export using http to an OTLP collector";
+            }
+            enum "grpc" {
+              description "Export using gRPC to an OTLP collector";
+            }
+          }
+          default "http";
+          description "Export protocol";
+        }
+
+        container metrics {
+          presence metrics;
+          description "Export NSO gauge and counter metrics";
+
+          leaf export-interval {
+            type uint16;
+            default 60;
+            description "Interval in seconds of how often to export metrics";
+          }
+        }
+      }
+
+      leaf logging {
+        type boolean;
+        default false;
+        description "Enable Python logging of tracing";
+      }
+
+      list extra-tags {
+        key name;
+        description "Extra tags to add to every exported span";
+
+        leaf name {
+          type string;
+          description "Name (key) of the tag";
+        }
+
+        leaf value {
+          type string;
+          mandatory true;
+          description "Value of the tag";
+        }
+      }
+
+      leaf jaeger-base-url {
+        type string;
+        description "Base URL to the Jaeger query system. This is used to form the URL in the transaction annotation link.";
+      }
+
+    }
+  }
+}

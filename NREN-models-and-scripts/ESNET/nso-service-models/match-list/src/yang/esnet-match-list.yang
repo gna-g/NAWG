@@ -1,0 +1,194 @@
+module esnet-match-list {
+  namespace "http://es.net/esnet-match-list";
+  prefix esnet-match-list;
+
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Match List Service";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+
+    list packet-prefix-list {
+      key "orch-id";
+      unique "device name";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "packet-prefix-list";
+      description "List of IP prefixes to use for packet filters";
+
+      uses match-list-common;
+
+      container prefixes {
+        description "Prefixes to match on.";
+        leaf-list prefixes-v4 {
+          when "../../address-family='ipv4'";
+          type ietf-inet-types:ipv4-prefix;
+          min-elements 1;
+          description "An IPv4 Prefix e.g. 192.0.2.0/24";
+        }
+
+        leaf-list prefixes-v6 {
+          when "../../address-family='ipv6'";
+          type ietf-inet-types:ipv6-prefix;
+          min-elements 1;
+          description "An IPv6 Prefix e.g. 200::/32";
+
+        }
+      }
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+    }
+
+    list route-prefix-list {
+      tailf-common:validate "route-prefix-list-validate" {
+      }
+      key "orch-id";
+      unique "device name";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "route-prefix-list";
+      description "List of prefixes and match conditions to use for routing filters/policies";
+
+      uses match-list-common;
+
+      container prefixes {
+        description "Prefixes to match on.";
+        container prefixes-v4 {
+          when "../../address-family='ipv4'";
+          description "Container of IPv4 prefix-list";
+          list entry {
+            key "prefix";
+            min-elements 1;
+            description "List of IPv4 prefixes and the accompanying match-type.";
+            leaf prefix {
+              type ietf-inet-types:ipv4-prefix;
+              description "Single IPv4 prefix entry such as 192.0.2.0/24";
+            }
+            uses match-cases;
+          }
+        }
+
+        container prefixes-v6 {
+          when "../../address-family='ipv6'";
+          description "Container of IPv6 prefix-list";
+          list entry {
+            key "prefix";
+            min-elements 1;
+            description "List of IPv6 prefixes and the accompanying match-type.";
+            leaf prefix {
+              type ietf-inet-types:ipv6-prefix;
+              description "Single IPv6 prefix entry such as 200::/32";
+            }
+            uses match-cases;
+          }
+        }
+      }
+
+      grouping match-cases {
+        description "Types of match cases that can be used for IPv4 and IPv6";
+        leaf match-type {
+          type enumeration {
+              enum "exact" {
+                value 1;
+                description "Matches when a given route is exactly the same as the specified prefix list entry, no sub networks of the route allowed.";
+              }
+              enum "longer" {
+                value 2;
+                description "Matches when a given route's prefix length is greater-than OR equal-to the prefix-length component of the specified prefix.";
+              }
+              enum "through" {
+                value 3;
+                description "Matches when a given route's prefix length falls between the prefix-length component of the specified prefix and the specified prefix-length (inclusive of both prefix-lengths).";
+              }
+              enum "range" {
+                value 4;
+                description "Matches when a given route's prefix length is contained by the specified prefix list entry and the route falls between the two given prefix-lengths (inclusive of both prefix-lengths).";
+              }
+          }
+          mandatory true;
+          description "Match type to use for this route-prefix-list entry";
+        }
+        choice masks {
+          when "match-type='through' or match-type='range'";
+          mandatory true;
+          description "Submet mask specific choices";
+          case through {
+            leaf length {
+              when "../match-type='through'";
+              type uint8 {}
+              mandatory true;
+              description "Length of subnet mask to match through.";
+            }
+          }
+          case range {
+            leaf from {
+              when "../match-type='range'";
+              type uint8 {}
+              must "current() <= ../through";
+              mandatory true;
+              description "Length of subnet mask to begin matching from (inclusive of this mask).";
+            }
+            leaf through {
+              when "../match-type='range'";
+              type uint8 {}
+              must "current() >= ../from";
+              mandatory true;
+              description "Length of subnet mask to match through (inclusive of this mask).";
+            }
+          }
+        }
+      }
+      leaf route-policy-statement {
+        type string;
+        description "Route Policy Statement name";
+      }
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+    }
+  }
+
+  grouping match-list-common {
+    description "Common attributes used for match-list services";
+    leaf device {
+      type leafref {
+        path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+      }
+      mandatory true;
+      description "The device to apply this prefix-list to.";
+    }
+    leaf address-family {
+      type enumeration {
+        enum ipv4 {
+          value 1;
+          description "✨Legacy✨ version of the Internet Protocol";
+        }
+        enum ipv6 {
+          value 2;
+          description "Current version of the Internet Protocol";
+        }
+      }
+      description "Address family this prefix-list contains";
+    }
+    leaf name {
+      type string {
+        length 1..32;
+      }
+      mandatory true;
+      description "Human readable description of this prefix-list instance. This value is sent down to the network element.";
+    }
+  }
+}

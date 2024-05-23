@@ -1,0 +1,77 @@
+module esnet-bridge {
+  namespace "http://es.net/esnet-bridge";
+  prefix esnet-bridge;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+
+  import esnet-port {
+    prefix esnet-port;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Layer 2 bridge Service";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list bridge {
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-bridge";
+
+      key "device vlan-id";
+      description "Bridge service instances";
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+
+      leaf description {
+        type string;
+        description "Human-readable description";
+      }
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:services/esnet-port:port/esnet-port:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'aggregation-switch' or . = 'management-router']" {
+         error-message "Device must have role of aggregation-switch or management-router";
+        }
+        description "Switch";
+      }
+
+      leaf l3-interface {
+        type string;
+        description "An IRB Interface that will be used for this bridge";
+      }
+
+      leaf vlan-id {
+        type uint32 {
+            range "1..4095";
+        }
+        description "Switch global VLAN id";
+      }
+
+      list member {
+        key ifce;
+        leaf ifce {
+          type leafref {
+            path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+          }
+          must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../device and esnet-port:ifce=current()]/esnet-port:type = 'ethernet'" {
+            error-message "Ports must have type = 'ethernet' and belong to the device";
+          }
+          description "Port";
+        }
+        description "Bridge member ports";
+      }
+
+    }
+  }
+}

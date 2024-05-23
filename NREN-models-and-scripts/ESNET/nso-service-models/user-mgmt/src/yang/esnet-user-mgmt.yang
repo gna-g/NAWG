@@ -1,0 +1,225 @@
+module esnet-user-mgmt {
+
+    namespace "http://www.es.net/esnet-user-mgmt";
+    prefix esnet-user-mgmt;
+
+    import tailf-ncs {
+        prefix tailf-ncs;
+    }
+    import tailf-common {
+        prefix tailf-common;
+    }
+
+    organization
+      "ESnet";
+    contact
+      "ESnet www.es.net";
+    description
+      "User account management";
+
+
+    augment /tailf-ncs:services {
+        description "User-mgmt Configuration";
+
+        list user-mgmt {
+            key device;
+
+            uses tailf-ncs:service-data;
+            tailf-ncs:servicepoint "esnet-user-mgmt";
+
+            leaf device {
+                type leafref {
+                    path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+                }
+                description
+                  "Device to configure user credentials on";
+            }
+
+            container users{
+                description
+                "users that exist within the service";
+                list user {
+                    key "username";
+                    unique "uid";
+                    description "authorized user configurations";
+
+                    leaf username {
+                        type string {
+                            length "2..32";
+                            pattern
+                            "[a-zA-Z0-9_-]+";
+                        }
+                        mandatory true;
+                        description
+                        "user account name";
+                    }
+
+                    leaf uid {
+                        type uint32 {
+                            // Junos NED limits the UID leaf in this way
+                            range "100..64000";
+                        }
+                        description
+                        "user Unix UID";
+                    }
+
+                    leaf full-name {
+                        type string;
+                        description
+                        "user full name";
+                    }
+
+                    container password {
+                        description
+                        "user password hashes";
+                        leaf alu-hash {
+                            type string {
+                                length "60";
+                                pattern
+                                '$\S{2}$\S{2}$\S+';
+                            }
+                            description
+                            "Hashed password in the Nokia accepted hash format";
+                        }
+
+                        leaf junos-hash {
+                            type string{
+                                length "98";
+                                pattern
+                                '$6$\S{8}$\S+';
+                            }
+                            description
+                            "Hashed password in the JunOS accepted hash format";
+                        }
+                    }
+
+
+                    leaf user-type {
+                        type enumeration {
+                            enum person {
+                                description
+                                "Human user";
+                            }
+                            enum program {
+                                description
+                                "Programmatic/machine user";
+                            }
+                            enum shared {
+                                description
+                                "Emergency/shared access";
+                            }
+                        }
+                        mandatory true;
+                        description
+                        "Type of user";
+                    }
+
+                    container user-role {
+                        when "../user-type != ''";
+                        choice role {
+                            mandatory true;
+                            description "available choices are determined by user-type";
+                            case operator {
+                                when "../user-type = 'person'";
+                                leaf operator {
+                                    type empty;
+                                    description "operator";
+                                }
+                            }
+                            case administrator {
+                                when "../user-type = 'person'";
+                                leaf administrator {
+                                    type empty;
+                                    description "administrator";
+                                }
+                            }
+                            case basic {
+                                when "../user-type = 'program'";
+                                leaf basic {
+                                    type empty;
+                                    description "machine user with default permissions";
+                                }
+                            }
+                            case configurator {
+                                when "../user-type = 'program'";
+                                leaf configurator {
+                                    type empty;
+                                    description "machine user with configure permissions";
+                                }
+                            }
+                            case privileged {
+                                when "../user-type = 'program'";
+                                leaf privileged {
+                                    type empty;
+                                    description "machine with super-user access";
+                                }
+                            }
+                            case break-glass {
+                                when "../user-type = 'shared'";
+                                leaf break-glass {
+                                    type empty;
+                                    description "break-glass/emergency shared user";
+                                }
+                            }
+                        }
+                        description
+                        "determine user role based on type defined in 'user-type'";
+                    }
+
+                    container ssh-keys {
+                        when "../user-type != 'shared'";
+
+                        choice key-type {
+                            case rsa {
+                                leaf-list rsa {
+                                    type string;
+                                    max-elements 3;
+                                    description
+                                    "ssh-rsa keys, can have up to three";
+                                }
+                            }
+                            case ecdsa {
+                                leaf-list ecdsa {
+                                    type string;
+                                    max-elements 3;
+                                    description
+                                    "ssh-ecdsa keys, can have up to three";
+                                }
+                            }
+                            description
+                                "Choose between ssh-rsa and ssh-ecdsa keys";
+                        }
+                        description
+                        "ssh-keys (ECDSA || RSA)";
+                    }
+
+                    leaf-list access {
+                        // hidden from CLI & Northbound API; dummy node filled in by Python service
+                        tailf-common:hidden full;
+                        type string;
+                        description
+                        "Nokia ALU user access groups";
+                    }
+
+                    leaf-list members {
+                        // hidden from CLI & Northbound API; dummy node filled in by Python service
+                        tailf-common:hidden full;
+                        type string;
+                        description
+                        "Nokia ALU access group list of permissions members";
+                    }
+
+                    leaf junos-cls {
+                        // hidden from CLI & Northbound API; dummy node filled in by Python service
+                        tailf-common:hidden full;
+                        type string;
+                        description
+                        "Junos user permissions class";
+                    }
+                }
+            }
+            description
+              "Configure users & credentials on multiple devices";
+        }
+    }
+}

@@ -1,0 +1,77 @@
+module device-smart-delete {
+
+  namespace "http://es.net/device-smart-delete";
+  prefix device-smart-delete;
+
+  import tailf-common { prefix tailf-common; }
+  import tailf-ncs { prefix tailf-ncs; }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description
+    "Action used to verify device has no references to services prior to deletion";
+  
+  typedef success-fail {
+    type enumeration {
+      enum SUCCESS {
+        value 0;
+        description "Device has no service references";
+      }
+      enum FAIL {
+        value 1;
+        description "Device has existing service references";
+      }
+    }
+    description "simple success/fail enum";
+  }
+
+  container smart-delete {
+    description "verify a device is eligible for deletion";
+    tailf-common:action smart-delete-action {
+      tailf-common:actionpoint device-smart-delete-action;
+      description "select a device to discover esnet service references";
+      input {
+        leaf device {
+          type leafref {
+            path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+          }
+          description "select a device";
+        }
+      }
+      output {
+        leaf result {
+          type success-fail;
+          description "is the device eligible for deletion?";
+        }
+        leaf device {
+          type string;
+          description "selected device";
+        }
+        leaf message {
+          type string;
+          description "status message";
+        }
+        list referenced-services {
+          key "leaf_name refcount backpointer";
+          description "all services associated to the selected device";
+
+          leaf leaf_name {
+            type string;
+            description "device configuration leaf found to have a reference to a service";
+          }
+
+          leaf refcount {
+            type uint8;
+            description "number of service references to this device configuration leaf";
+          }
+
+          leaf backpointer {
+            type string;
+            description "xpath to referenced service configuration";
+          }
+        }
+      }
+    }
+  }
+
+}

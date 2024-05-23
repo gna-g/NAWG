@@ -1,0 +1,92 @@
+module esnet-dns-basecfg {
+
+  namespace "http://es.net/esnet-dns-basecfg";
+  prefix esnet-dns-basecfg;
+
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet DNS Base Configuration";
+
+
+  grouping server_address {
+    description "DNS server parameters";
+    leaf ipv6-address {
+      type ietf-inet-types:ipv6-address;
+      description "DNS server IPv6 address";
+    }
+    leaf ipv4-address {
+      type ietf-inet-types:ipv4-address;
+      description "DNS server IPv4 address";
+    }
+  }
+
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+
+    list dns-basecfg {
+      must "count(primary) = 1" {
+        error-message "Require exactly one primary DNS entry ";
+      }
+      must "count(secondary) = 1" {
+        error-message "Require exactly one secondary DNS entry ";
+      }
+      key device;
+      description "DNS Base configuration";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-dns-basecfg";
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device to use";
+      }
+
+      leaf domain-name {
+        type string;
+        mandatory true;
+        description "Domain name";
+      }
+
+      container primary {
+        must "count(./ipv6-address|./ipv4-address) = 1" {
+          error-message "Primary DNS entry must have at least one of ipv4-address / ipv6-address ";
+        }
+        description "Primary DNS server for device";
+        uses server_address;
+      }
+
+      container secondary {
+        must "count(./ipv6-address|./ipv4-address) = 1" {
+          error-message "Secondary DNS entry must have at least one of ipv4-address / ipv6-address ";
+        }
+        description "Secondary DNS server for device";
+        uses server_address;
+      }
+
+      container tertiary {
+        description "Tertiary DNS server for device";
+        uses server_address;
+      }
+
+      container quaternary {
+        description "Quaternary DNS server for device";
+        uses server_address;
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+    }
+  }
+}

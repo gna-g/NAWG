@@ -1,0 +1,671 @@
+module esnet-routing-domain {
+
+    namespace "http:/www.es.net/esnet-routing-domain";
+    prefix esnet-routing-domain;
+
+    import tailf-ncs {
+        prefix tailf-ncs;
+    }
+    import tailf-common {
+      prefix tailf-common;
+    }
+    import ietf-inet-types {
+        prefix ietf-inet-types;
+    }
+    import esnet-common {
+        prefix esnet-common;
+    }
+
+    organization "ESnet";
+    contact "ESnet www.es.net";
+    description "Routing domain (with BGP and ISIS)";
+
+    grouping route-table-attributes {
+        description "MPLS VPN routing table attributes";
+        leaf name {
+            // this is rendered in routers as routing instance names, prefix list names, etc
+            type string {
+              length "2..7";
+              pattern "[a-zA-Z0-9_-]+";
+            }
+            mandatory true;
+            description "Name of this routing table (2-10 chars, a-zA-Z0-9_-)";
+        }
+        leaf type {
+          type enumeration {
+            enum base {
+              value 0;
+              description "Base";
+            }
+            enum l3vpn {
+              value 4;
+              description "L3VPN";
+            }
+            enum lhcone {
+              value 2;
+              description "LHCONE";
+            }
+            enum mgmt {
+              value 3;
+              description "Management";
+            }
+            enum ipt {
+              value 5;
+              description "IP Transit";
+            }
+          }
+          mandatory true;
+          description "table type";
+        }
+
+        leaf descr {
+            when "../type = 'l3vpn' or ../type = 'lhcone' or ../type = 'ipt'";
+            type string {
+              length "4..64";
+              pattern '[a-zA-Z0-9_-| ]+';
+            }
+            mandatory true;
+            description "Description of this routing table (4-64 chars, a-zA-Z0-9_-)";
+        }
+
+        leaf service-id {
+            when "../type = 'l3vpn' or ../type = 'lhcone' or ../type = 'ipt'";
+            type int32 {
+                range "100..199 | 293 | 20100..20199";
+            }
+            must "not((../type = 'l3vpn' or ../type = 'lhcone') and ../service-id = 293)" {
+                error-message "service-id 293 can only be used for ipt, not l3vpn or lhcone";
+            }
+            must "not(../type = 'ipt' and (../service-id >= 100 and ../service-id <= 199))" {
+                error-message "service-ids 100-199 can only be used for l3vpn or lhcone, not ipt";
+            }
+            mandatory true;
+            description "Unique service-id number (used on Nokias). Range 100-199 (production), 293 (ipt production), 20100-20199 (testing)";
+        }
+
+        leaf bgp-community {
+            when "../type = 'l3vpn' or ../type = 'lhcone' or ../type = 'ipt'";
+            type ietf-inet-types:as-number;
+            mandatory true;
+            description "Identifier by which l3vpn routes are distributed";
+        }
+
+        leaf resolution {
+            when "../type = 'l3vpn' or ../type = 'lhcone' or ../type = 'ipt'";
+            type enumeration {
+                enum "ldp" {
+                  value 0;
+                  description "label distribution protocol";
+                }
+                enum "sr-isis" {
+                  value 1;
+                  description "segment routing isis";
+                }
+                enum "ldp__sr-isis" {
+                  value 2;
+                  description "ldp resolution with sr-isis backup";
+                }
+                enum "sr-isis__ldp" {
+                  value 3;
+                  description "sr-isis resolution with ldp backup";
+                }
+                enum "sr-te__sr-isis" {
+                  value 4;
+                  description "sr-isis resolution with sr-te overrides, no ldp";
+                }
+                enum "sr-te__ldp__sr-isis" {
+                  value 5;
+                  description "ldp with sr-te overrides and sr-isis backup";
+                }
+            }
+            mandatory true;
+            description "protocols by which l3vpn routes are resolved";
+        }
+
+        container aggregates {
+          when "../type = 'l3vpn' or ../type = 'ipt'";
+          description "Aggregate prefixes for Route Table";
+
+          leaf-list v4 {
+            type ietf-inet-types:ipv4-prefix;
+            description "IPv4 Aggregate Prefix";
+          }
+          leaf-list v6 {
+            type ietf-inet-types:ipv6-prefix;
+            description "IPv6 Aggregate Prefix";
+          }
+        }
+
+        leaf ipt-migration-phase {
+          when "../type = 'ipt'";
+          type enumeration {
+            enum one-and-two {
+              value 1;
+              description "Pre and peri customer migration, full migration plan leaking";
+            }
+            enum three {
+              value 3;
+              description "Post customer migration, black hole route leak only";
+            }
+            enum four {
+              value 4;
+              description "Post Nokia black hole routing fix, no route leaking";
+            }
+          }
+          default "one-and-two";
+          description "Phase of the Base->IPT migration plan";
+        }
+    }
+
+    grouping routing-domain-attributes {
+        description "Routing domain attributes";
+        leaf orch-id {
+            type string;
+            description "Orchestrator id";
+        }
+
+        leaf name {
+            type string;
+            mandatory true;
+            description "Name";
+        }
+
+        leaf asn {
+            type ietf-inet-types:as-number;
+            mandatory true;
+            description "autonomous system number";
+        }
+
+    }
+
+    grouping prefix-v4 {
+      leaf name {
+        type string {
+          length "2..24";
+          pattern "[a-zA-Z0-9_-]+";
+        }
+        mandatory true;
+        description "IPv4 prefix-list name";
+      }
+      leaf network {
+        type ietf-inet-types:ipv4-prefix;
+        mandatory true;
+        description "IPV4 network";
+      }
+      description "IPV4 prefix list item";
+    }
+
+    grouping prefix-v6 {
+      leaf name {
+        type string {
+          length "2..24";
+          pattern "[a-zA-Z0-9_-]+";
+        }
+        mandatory true;
+        description "IPv6 prefix-list name";
+      }
+      leaf network {
+        type ietf-inet-types:ipv6-prefix;
+        mandatory true;
+        description "IPV6 network";
+      }
+      description "IPV6 prefix list item";
+    }
+
+    grouping backbone-prefix-v4 {
+      uses prefix-v4;
+      leaf upto {
+        type uint16 {
+          range "8 .. 32";
+        }
+        mandatory true;
+        description "up to subnet mask";
+      }
+      description "IPv4 prefix-lists and related parameters";
+    }
+
+    grouping backbone-prefix-v6 {
+      uses prefix-v6;
+      leaf upto {
+        type uint16 {
+          range "32 .. 128";
+        }
+        mandatory true;
+        description "up to subnet mask";
+      }
+      description "IPv6 prefix-lists and related parameters";
+    }
+
+    grouping base-resolution-types {
+      leaf base-resolution {
+        type enumeration {
+          enum "ldp" {
+            value 0;
+            description "label distribution protocol";
+          }
+          enum "sr-isis" {
+            value 1;
+            description "segment routing isis";
+          }
+          enum "ldp__sr-isis" {
+            value 2;
+            description "ldp resolution with sr-isis backup";
+          }
+          enum "sr-isis__ldp" {
+            value 3;
+            description "sr-isis resolution with ldp backup";
+          }
+          enum "sr-te__sr-isis" {
+            value 4;
+            description "sr-isis resolution with sr-te overrides, no ldp";
+          }
+          enum "sr-te__ldp__sr-isis" {
+            value 5;
+            description "ldp with sr-te overrides and sr-isis backup";
+          }
+          enum "sr-te__sr-isis__ldp" {
+            value 6;
+            description "sr-isis resolution with sr-te overrides and ldp backup";
+          }
+        }
+        default "sr-isis__ldp";
+        description "Base Next hop resolution method";
+      }
+      description "Next Hop resolution method used by Base";
+    }
+
+    augment /tailf-ncs:services {
+        description "Service Configurations";
+        list routing-domain-member {
+            key device;
+            uses tailf-ncs:service-data;
+            tailf-ncs:servicepoint "esnet-routing-domain-member";
+            leaf device {
+              type leafref {
+                  path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+              }
+              description "Device";
+            }
+
+            uses base-resolution-types;
+
+            leaf routing-domain {
+              type leafref {
+                  path "/tailf-ncs:services/esnet-routing-domain:routing-domain/name";
+              }
+              description "Routing domain";
+            }
+            leaf enable-ipt-and-leaking {
+              type boolean;
+              default false;
+              description "Enable ipt vprn and route leaking for this device";
+            }
+            description "Routing domain members (list generated by routing-domain service)";
+        }
+
+        list routing-domain {
+            key name;
+
+            unique asn;
+            unique "isis/authentication-key";
+
+            uses tailf-ncs:service-data;
+            tailf-ncs:servicepoint "esnet-routing-domain";
+
+            uses routing-domain-attributes;
+
+            leaf-list device {
+              type leafref {
+                  path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+              }
+              must "count(../../routing-domain/device[current()=.])=1" {
+                error-message "a device may only be used by a single routing-domain instance";
+              }
+              description "Device";
+            }
+
+            leaf layer2-mtu {
+              type uint16 {
+                range "1514 .. 9212";
+              }
+
+              default 9212;
+              description
+                "Default MTU for the routing domain.";
+            }
+
+            container isis {
+              must "count(ipv4/prefix-list/prefix/ipv4-prefix)>0" {
+                error-message "one ISIS ipv4 prefix list is required";
+              }
+              must "count(ipv6/prefix-list/prefix/ipv6-prefix)>0" {
+                error-message "one ISIS ipv6 prefix list is required";
+              }
+
+              presence true;
+
+              // Nokias automatically generate the ISO (NSAP) address
+              // based on this + the interface IP address
+              // NSO generates and set that address on Juniper interfaces.
+
+              leaf area-id {
+                type string {
+                  pattern '\d{2}(\.\d{4}){1,6}';
+                }
+                // matches these: 12.3456 / 12.3456.7890 / 12.3456.7890.1234 / etc.
+
+                // variable length field with some restrictions
+                // string format is a little convoluted
+                // each 2 characters is a byte. 0-9a-f (but we decided to not use a-f)
+                // after the first byte, it's quad-character notated
+
+                // first byte is required (AFI), followed by an even number of bytes up to 12
+                // so this can technically go all the way up to 6 quads.
+                //    12.3456.7890.abcd.ef12.3456.7890
+
+                mandatory true;
+                description "ISIS Area ID (for ISO address generation) format: 12.3456[.7890[.1234[.5678[.9012[.3456]]]]] ";
+              }
+
+              leaf authentication-key {
+                // nokias take a max size; setting a minimum as a matter of policy
+                type string {
+                  length "6..254";
+                }
+                mandatory true;
+                description "Cleartext password to be kept in the config plaintext / converted to MD5. 6..254 characters";
+              }
+              leaf authentication-type {
+                type enumeration {
+                  enum    plaintext {
+                    value 0;
+                    description "Sets plain text for the auth-key format";
+                  }
+                  enum    message-digest {
+                    value 1;
+                    description "Sets MD5 for the auth-key format";
+                  }
+                }
+                mandatory true;
+                description "This leaf describes the authentication type to be used.";
+              }
+
+              container ipv4 {
+
+                list prefix-list {
+                  key name;
+                  ordered-by user;
+                  leaf name {
+                    // this is rendered only on nokias as a prefix-list name
+                    // nokias allow up to 32 characters; we prepend 'isis-v4-' in the template so there are 24 left.
+                    type string {
+                      length "2..24";
+                      pattern "[a-zA-Z0-9_-]+";
+                    }
+                    description "Prefix-list name (2-24 chars, a-zA-Z0-9_-). 'isis-v4-' will be prepended to it in router config.";
+                  }
+                  list prefix {
+                    key name;
+                    leaf name {
+                    // this name is rendered in Junipers only, as a policy-statement term name. we limit size down to 24.
+                      type string {
+                        length "2..24";
+                        pattern "[a-zA-Z0-9_-]+";
+                      }
+                      description "Prefix name (2-24 chars, a-zA-Z0-9_-). 'isis-v4-' will be prepended to it in router config.";
+                    }
+                    leaf ipv4-prefix {
+                      type ietf-inet-types:ipv4-prefix;
+                      description "IPv4 prefix";
+                    }
+                    description "Prefix attributes";
+                  }
+                  description "Prefix-lists";
+                }
+                description "IPv4 ISIS prefixes";
+              }
+              container ipv6 {
+                list prefix-list {
+                  key name;
+                  ordered-by user;
+                  leaf name {
+                    // this is rendered only on nokias as a prefix-list name
+                    // nokias allow up to 32 characters; we prepend 'isis-v4-' in the template so there are 24 left.
+                    type string {
+                      length "2..24";
+                      pattern "[a-zA-Z0-9_-]+";
+                    }
+                    description "Prefix-list name (2-24 chars, a-zA-Z0-9_-). 'isis-v6-' will be prepended to it in router config.";
+                  }
+                  list prefix {
+                    key name;
+                    leaf name {
+                    // this name is rendered in Junipers only, as a policy-statement term name. we limit size down to 24.
+                      type string {
+                        length "2..24";
+                        pattern "[a-zA-Z0-9_-]+";
+                      }
+                      description "Prefix name (2-24 chars, a-zA-Z0-9_-). 'isis-v6-' will be prepended to it in router config.";
+                    }
+                    leaf ipv6-prefix {
+                      type ietf-inet-types:ipv6-prefix;
+                      description "IPv6 prefix";
+                    }
+                    description "Prefix attributes";
+                  }
+                  description "Prefix-lists";
+                }
+                description "IPv6 ISIS prefixes";
+              }
+              description "ISIS attributes";
+            }
+
+            container bgp {
+              must "count(route-table[type='base'])=1" {
+                error-message "Exactly one route table of type 'base' required";
+              }
+              must "count(route-table[type='lhcone'])<=1" {
+                error-message "Up to one route table of type 'lhcone' supported";
+              }
+              must "count(route-table[type='ipt'])<=1" {
+                error-message "Up to one route table of type 'ipt' supported";
+              }
+
+              presence true;
+
+              container ibgp {
+
+                tailf-common:validate "ibgp-validate" {
+                  tailf-common:dependency "mesh-device";
+                  tailf-common:dependency "group";
+                  tailf-common:dependency "v4";
+                  tailf-common:dependency "v6";
+                }
+
+                tailf-common:action check-references {
+                  tailf-common:actionpoint ibgp-check-references;
+                  description "check if it is safe to delete a device from the iBGP mesh";
+                  input {
+                    leaf mesh-device {
+                      type leafref {
+                        path "../../mesh-device";
+                      }
+                      description "Device for the l3-peer reference check";
+                    }
+                  }
+                  output {
+                    leaf reference-found {
+                      type boolean;
+                      description "Status of l3-peer references: true if reference was found, false otherwise";
+                    }
+                    leaf safe-to-remove {
+                      type boolean;
+                      description "If device is safe to remove: true if safe, false otherwise";
+                    }
+                  }
+                }
+
+                tailf-common:action safe-delete {
+                  tailf-common:actionpoint ibgp-mesh-device-delete;
+                  description "Delete device from iBGP mesh including a l3-peer reference check";
+                  input {
+                    leaf mesh-device {
+                      type leafref {
+                        path "../../mesh-device";
+                      }
+                      description "Device to delete";
+                    }
+                  }
+                  output {
+                    leaf message {
+                      type string;
+                      description "Status message from safe-delete operation";
+                    }
+                  }
+                }
+
+                leaf-list mesh-device {
+                  type leafref {
+                    path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../../name]/esnet-routing-domain:device";
+                  }
+                  must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+                    error-message "iBGP device must be a core-router";
+                  }
+                  description "iBGP devices";
+                }
+
+                leaf validate-mesh {
+                  type boolean;
+                  default true;
+                  description "Cross-checks iBGP mesh and l3-peer device references";
+                }
+
+                leaf-list token-prefix-generators {
+                  type leafref {
+                    path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../../name]/esnet-routing-domain:device";
+                  }
+                  must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+                    error-message "Token generator device must be a core-router";
+                  }
+                  description "Token prefix generators";
+                }
+                leaf-list external-aggregate-prefix-generators {
+                  type leafref {
+                    path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../../name]/esnet-routing-domain:device";
+                  }
+                  must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+                    error-message "External aggregate generator device must be a core-router";
+                  }
+                  description "External Aggregate prefix generators";
+                }
+                leaf min-tp-generators {
+                  type uint16 {
+                    range "0..10";
+                  }
+                  default 0;
+                  description "How many token prefix generators to enforce";
+                }
+                leaf min-eap-generators {
+                  type uint8 {
+                    range "0..10";
+                  }
+                  default 0;
+                  description "How many external aggregate prefix generators to enforce";
+                }
+
+                container group {
+                  leaf name {
+                    type string {
+                      length "2..24";
+                      pattern "[a-zA-Z0-9_-]+";
+                    }
+                    description "BGP group name";
+                  }
+                  leaf description {
+                    type string {
+                      length "2..24";
+                      pattern "[a-zA-Z0-9_-]+";
+                    }
+                    description "BGP group description";
+                  }
+                  description "BGP group";
+                }
+
+                container v4 {
+                  container backbone {
+                    list prefix {
+                      key name;
+                      uses backbone-prefix-v4;
+                      max-elements 50000;
+                      description "IPV4 prefixes";
+                    }
+                    description "IPV4 backbone drop prefix parameters";
+                  }
+                  description "IPV4 parameters";
+                }
+
+                container v6 {
+                  container backbone {
+                    list prefix {
+                      key name;
+                      uses backbone-prefix-v6;
+                      max-elements 50000;
+                      description "IPV6 prefixes";
+                    }
+                    description "IPV4 backbone drop prefix parameters";
+                  }
+                  description "IPV6 parameters";
+                }
+                description "iBGP configuration";
+              }
+
+              list route-table {
+                key name;
+                unique "service-id";
+                unique "bgp-community";
+
+                uses route-table-attributes;
+                list non-global-aggregates {
+                  key name;
+
+                  leaf name {
+                    type string {
+                      length "2..15";
+                      pattern "[a-zA-Z0-9_-]+";
+                    }
+                    mandatory true;
+                    description "Name of this non-global aggregate instance (2-15 chars, a-zA-Z0-9_-)";
+                  }
+
+                  leaf-list aggregate-generating-routers {
+                    type leafref {
+                      path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../../../name]/esnet-routing-domain:device";
+                    }
+                    must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+                      error-message "Aggregate generating router must be a core-router";
+                    }
+                    description "Aggregate generating routers";
+                  }
+
+                  container aggregates {
+                    leaf-list v4 {
+                      type ietf-inet-types:ipv4-prefix;
+                      description "IPv4 Aggregate Prefix";
+                    }
+                    leaf-list v6 {
+                      type ietf-inet-types:ipv6-prefix;
+                      description "IPv6 Aggregate Prefix";
+                    }
+                    description "Aggregate prefixes to be generated";
+                  }
+                  description "Non-global aggregate prefix generation for Route Table";
+                }
+                description "defines a routing table instance";
+              }
+              description "BGP parameters";
+            }
+
+            description "An autonomous system with ISIS and BGP";
+        }
+    }
+}

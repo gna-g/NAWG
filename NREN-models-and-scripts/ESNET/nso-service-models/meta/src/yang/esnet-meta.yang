@@ -1,0 +1,223 @@
+module esnet-meta {
+
+  namespace "http://es.net/meta";
+  prefix esnet-meta;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-port {
+    prefix esnet-port;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "Actions that act on multiple other services";
+
+  grouping bulk-admin-state-input {
+    leaf admin-state {
+      type enumeration {
+        enum maintenance {
+          value 1;
+          description "In maintenance";
+        }
+      }
+      default maintenance;
+      description "Administrative state";
+    }
+    list core-router {
+      key device;
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+          error-message "The device must be a core-router";
+        }
+        description "Device";
+      }
+      leaf scope {
+        type enumeration {
+          enum chassis {
+            value 1;
+            description "Apply to the whole chassis";
+          }
+          enum sub-components {
+            value 2;
+            description "Apply to sub-components only";
+          }
+        }
+        default chassis;
+        description "Scope: entire device or sub-components";
+      }
+
+      leaf-list port {
+        when "../scope = 'sub-components'";
+        tailf-common:cli-completion-actionpoint bulk-admin-state-port-list;
+        type leafref {
+          path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+        }
+        must "count(/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../device and esnet-port:ifce=current()])=1" {
+          error-message "Ports must belong to the device";
+        }
+        description "Port list";
+      }
+
+      list sap {
+        when "../scope = 'sub-components'";
+        key port;
+        leaf port {
+          tailf-common:cli-completion-actionpoint bulk-admin-state-port-list;
+          type leafref {
+            path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+          }
+          must "count(/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../device and esnet-port:ifce=current()])=1" {
+            error-message "Ports must belong to the device";
+          }
+          description "Port";
+        }
+        leaf vlan-id {
+          when "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../device and esnet-port:ifce=current()/../port]/esnet-port:eth-encap = 'dot1q'";
+          type uint16 {
+            range "0..4095";
+          }
+          description "VLAN-ID";
+        }
+        description "SAP ( PORT : VLAN-ID )";
+      }
+      list concentrator {
+        when "../scope = 'sub-components'";
+        key identifier;
+        leaf identifier {
+          type string {
+            length "1..10";
+          }
+          description "Concentrator identifier (vendor-specific)";
+        }
+        description "Port concentrator list";
+      }
+      description "Core router list";
+    }
+    description "Shared input for bulk-admin-state-service";
+  }
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list bulk-admin-state {
+      key name;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-bulk-admin-state";
+      description "Bulk admin-state Configuration";
+
+      leaf name {
+        type string {
+          length "2..62";
+          pattern "[a-zA-Z][a-zA-Z0-9-]+";
+        }
+        description "Instance name";
+      }
+      uses bulk-admin-state-input;
+    }
+    container bulk-admin-state-what-if {
+      tailf-common:action bulk-admin-state-what-if-action {
+        tailf-common:actionpoint bulk-admin-state-what-if;
+        input {
+          uses bulk-admin-state-input;
+        }
+        output {
+          container affected-bbls {
+            list bbl {
+              key "name orch-id";
+              leaf name {
+                type string;
+                description "bbl name";
+              }
+              leaf orch-id {
+                type string;
+                description "bbl orch-id";
+              }
+              container affected-l3-circuits {
+                list l3-circuit {
+                  key name;
+                  leaf name {
+                    type string;
+                    description "l3-circuit name";
+                  }
+                  description "affected l3-circuit";
+                }
+                description "affected l3-circuits";
+              }
+              description "affected bbl";
+            }
+            description "affected bbls";
+          }
+          container affected-l3-customers {
+            list l3-customer {
+              key "name orch-id";
+              leaf name {
+                type string;
+                description "l3-customer name";
+              }
+              leaf orch-id {
+                type string;
+                description "l3-customer orch-id";
+              }
+              description "affected l3-customer";
+            }
+            description "affected l3-customers";
+          }
+          container affected-l3-transits {
+            list l3-transit {
+              key "name orch-id";
+              leaf name {
+                type string;
+                description "l3-transit name";
+              }
+              leaf orch-id {
+                type string;
+                description "l3-transit orch-id";
+              }
+              description "affected l3-transit";
+            }
+            description "affected l3-transits";
+          }
+          container affected-l3-interfaces {
+            list l3-interface {
+              key "service-edge orch-id";
+              leaf service-edge {
+                type string;
+                description "l3-interface service-edge";
+              }
+              leaf device {
+                type string;
+                description "l3-interface device";
+              }
+              leaf layer2-description {
+                type string;
+                description "l3-interface layer2-description";
+              }
+              leaf layer3-description {
+                type string;
+                description "l3-interface layer3-description";
+              }
+              leaf orch-id {
+                type string;
+                description "l3-interface orch-id";
+              }
+              description "affected l3-interface";
+            }
+            description "affected l3-interfaces";
+          }
+        }
+        description "Show items affected by bulk-admin-state service";
+      }
+      description "Service Container for bulk-admin-state-what-if";
+    }
+  }
+}

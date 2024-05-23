@@ -1,0 +1,102 @@
+module esnet-syslog-basecfg {
+
+  namespace "http://es.net/esnet-syslog-basecfg";
+  prefix syslog-basecfg;
+
+  import ietf-inet-types {
+    prefix ietf-inet-types;
+  }
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet Syslog Base Configuration";
+
+  grouping server_address {
+    description "Syslog server parameters";
+    choice address {
+      mandatory true;
+      description "server address";
+
+      case ipv6 {
+        leaf ipv6-address {
+          type ietf-inet-types:ipv6-address;
+          description "Syslog server IPv6 address";
+        }
+      }
+      case ipv4 {
+        leaf ipv4-address {
+          type ietf-inet-types:ipv4-address;
+          description "Syslog server IPv4 address";
+        }
+      }
+    }
+  }
+
+  grouping server_prefix {
+    description "Syslog server parameters";
+    choice prefix {
+      description "server prefix";
+
+      case ipv6 {
+        leaf ipv6-prefix {
+          type ietf-inet-types:ipv6-prefix;
+          description "Syslog server IPv6 prefix/prefix-length";
+        }
+      }
+      case ipv4 {
+        leaf ipv4-prefix {
+          type ietf-inet-types:ipv4-prefix;
+          description "Syslog server IPv4 prefix/prefix-length";
+        }
+      }
+    }
+  }
+
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+
+    list syslog-basecfg {
+      key device;
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "syslog-basecfg";
+      description "Syslog configurations";
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        description "Device to use";
+      }
+
+      list syslog-server {
+        key "name";
+        unique "id";
+        min-elements 1;
+        ordered-by user;
+        description "Syslog server information";
+        leaf id {
+          type uint8 {
+            range "1 .. 10";
+          }
+          mandatory true;
+          description "Log id (allowed range: 1..10)";
+        }
+        leaf name {
+          type string;
+          mandatory true;
+          description "Syslog server name";
+        }
+        uses server_address;
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+    }
+  }
+}

@@ -1,0 +1,293 @@
+module esnet-host {
+  namespace "http://es.net/esnet-host";
+  prefix esnet-host;
+
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import tailf-common {
+    prefix tailf-common;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+  import esnet-routing-domain {
+    prefix esnet-routing-domain;
+  }
+  import esnet-port {
+    prefix esnet-port;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "Hosts service";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list host {
+
+      key "name";
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-host";
+
+      description "Host configuration";
+      leaf name {
+        type string {
+          length "1..48";
+          pattern "[a-zA-Z0-9-]+";
+        }
+        description "instance name";
+      }
+
+      leaf orch-id {
+        type string;
+        description "Orchestrator id";
+      }
+
+      leaf routing-domain {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain/esnet-routing-domain:name";
+        }
+        mandatory true;
+        description "Routing domain instance";
+      }
+
+      leaf type {
+        type enumeration {
+          enum zeek-mgt {
+            value 0;
+            description "Zeek (management)";
+          }
+          enum zeek-wan {
+            value 1;
+            description "Zeek (WAN)";
+          }
+          enum pt {
+            value 2;
+            description "Performance Tester";
+          }
+          enum dtn {
+            value 3;
+            description "DTN";
+          }
+          enum gw {
+            value 4;
+            description "Gateway";
+          }
+          enum ht {
+            value 5;
+            description "High Touch";
+          }
+          enum bert {
+                        value 6;
+                        description
+                          "Bit Error Rate Tester";
+                    }
+        }
+        mandatory true;
+        description "Host type";
+      }
+
+      leaf core-router {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router' ]" {
+          error-message "Device must be a core router";
+        }
+        mandatory true;
+        description "The core router";
+      }
+
+      leaf mgmt-router {
+        type leafref {
+          path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../routing-domain]/esnet-routing-domain:device";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'management-router' ]" {
+          error-message "Device must be a management router";
+        }
+        mandatory true;
+        description "The management router";
+      }
+
+      list mgmt-router-ifce {
+        when "../type = 'pt' or ../type = 'gw'";
+        must "count(v4/address) + count(v6/address) > 0" {
+          error-message "must configure at least one of [ v4/address, v6/address ]";
+        }
+        key "mgmt-router-port vlan-id";
+        uses mgmt-router-port-with-ifce;
+        uses route-table;
+        description "Attributes for bridged mgmt-router interfaces";
+      }
+
+      list core-router-ifce {
+        when "../type = 'pt' or ../type = 'dtn' or ../type = 'ht' or ../type = 'bert'";
+        must "count(v4/address) + count(v6/address) > 0" {
+          error-message "must configure at least one of [ v4/address, v6/address ]";
+        }
+        key "core-router-port vlan-id";
+        uses core-router-port-with-ifce;
+        uses route-table;
+        description "Attributes for directly connected core-router interface";
+      }
+
+      leaf-list mgmt-router-capture-port {
+        when "../type = 'zeek-mgt'";
+        type leafref {
+          path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+        }
+        must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../mgmt-router and esnet-port:ifce=current()]/esnet-port:eth-encap = 'access'" {
+          error-message "Port must have eth-encap = 'access'";
+        }
+        description "Management router capture ports";
+      }
+
+      leaf-list core-router-capture-port {
+        when "../type = 'zeek-wan' or ../type = 'ht'";
+        type leafref {
+          path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+        }
+        must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../core-router and esnet-port:ifce=current()]/esnet-port:eth-encap = 'dot1q'" {
+          error-message "Port must have eth-encap = 'dot1q'";
+        }
+        must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../core-router and esnet-port:ifce=current()]/esnet-port:mode = 'access' " +
+        "or /tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../core-router and esnet-port:ifce=current()]/esnet-port:mode = 'hybrid'"{
+          error-message "invalid port mode";
+        }
+        description "Core router capture ports";
+      }
+
+      leaf ipmi-port {
+        type leafref {
+          path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+        }
+        must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../mgmt-router and esnet-port:ifce=current()]/esnet-port:eth-encap = 'access'" {
+          error-message "Port must have eth-encap = 'access'";
+        }
+        description "IPMI port";
+      }
+
+      leaf mgmt-port {
+        when "../type != 'gw'";
+        type leafref {
+          path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+        }
+        must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../mgmt-router and esnet-port:ifce=current()]/esnet-port:eth-encap = 'access'" {
+          error-message "Port must have eth-encap = 'access'";
+        }
+        description "Management port";
+      }
+
+
+    }
+  }
+
+  grouping mgmt-router-port-with-ifce {
+    uses host-ifce-attrs;
+    uses mgmt-router-port-attrs;
+    description "Attributes for a management-router port with an associated bridged router SAP and interface";
+  }
+
+  grouping core-router-port-with-ifce {
+    uses host-ifce-attrs;
+    uses core-router-port-attrs;
+    description "Attributes for a core-router port with an associated router SAP and interface";
+  }
+
+  grouping core-router-port-attrs {
+    leaf core-router-port {
+      type leafref {
+        path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+      }
+      must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../core-router and esnet-port:ifce=current()]/esnet-port:eth-encap = 'dot1q'" {
+        error-message "Port must have eth-encap = 'dot1q'";
+      }
+      must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../core-router and esnet-port:ifce=current()]/esnet-port:mode = 'hybrid' " +
+      "or /tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../core-router and esnet-port:ifce=current()]/esnet-port:mode = 'access'" {
+        error-message "invalid port mode";
+      }
+      mandatory true;
+      description "Port on core router. Must already exist on port service.";
+    }
+    description "Attributes for a core-router port";
+  }
+
+  grouping mgmt-router-port-attrs {
+    leaf mgmt-router-port {
+      type leafref {
+        path "/tailf-ncs:services/esnet-port:port/esnet-port:ifce";
+      }
+      must "/tailf-ncs:services/esnet-port:port[esnet-port:device=current()/../../mgmt-router and esnet-port:ifce=current()]/esnet-port:type = 'ethernet'" {
+        error-message "Port must have type = 'ethernet'";
+      }
+      mandatory true;
+      description "Port on management router. Must already exist on port service.";
+    }
+    description "Attributes for a mgmt-router port";
+  }
+
+  grouping host-ifce-attrs {
+    leaf service-edge {
+      type string {
+        length "2..32";
+        pattern "[a-zA-Z][a-zA-Z0-9_-]+";
+      }
+      mandatory true;
+      description "Service-edge / interface name";
+    }
+
+    leaf vlan-id {
+      type uint32 {
+          range "0..4095";
+      }
+      mandatory true;
+      description "VLAN id";
+    }
+
+    leaf core-rtr-ifce-description {
+      type string;
+      mandatory true;
+      description "Layer3 interface description";
+    }
+
+    leaf core-rtr-sap-description {
+      type string;
+      mandatory true;
+      description "Layer 2 subinterface (SAP) description";
+    }
+
+    container v4 {
+      presence v4;
+      leaf address {
+        type tailf-common:ipv4-address-and-prefix-length;
+        mandatory true;
+        description "IPv4 address";
+      }
+      description "IPv4 attributes";
+    }
+
+    container v6 {
+      leaf address {
+        type tailf-common:ipv6-address-and-prefix-length;
+        mandatory true;
+        description "IPv6 address";
+      }
+      presence v6;
+      description "IPv6 attributes";
+    }
+
+    description "Host interface attributes grouping";
+  }
+
+  grouping route-table {
+    leaf route-table {
+      type leafref {
+        path "/tailf-ncs:services/esnet-routing-domain:routing-domain[esnet-routing-domain:name=current()/../../routing-domain]/esnet-routing-domain:bgp/esnet-routing-domain:route-table/esnet-routing-domain:name";
+      }
+      mandatory true;
+      description "route table grouping";
+    }
+    description "route-table grouping";
+  }
+}

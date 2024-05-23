@@ -1,0 +1,119 @@
+module esnet-bfd {
+  namespace "http://es.net/esnet-bfd";
+  prefix esnet-bfd;
+  import ietf-yang-types {
+    prefix ietf-yang-types;
+  }
+  import tailf-ncs {
+    prefix tailf-ncs;
+  }
+  import esnet-common {
+    prefix esnet-common;
+  }
+
+  organization "ESnet";
+  contact "ESnet www.es.net";
+  description "ESnet BFD Template Service";
+
+  augment /tailf-ncs:services {
+    description "Service Configuration";
+    list bfd-template {
+      key "uuid";
+      unique "device name";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-bfd-template";
+      description "List of BFD Template Instances";
+
+      leaf uuid {
+        type ietf-yang-types:uuid;
+        mandatory true;
+        description "UUID that can be used to uniquely identify this BFD Template instance";
+      }
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+          error-message "The device must be a core-router";
+        }
+        description "Device";
+      }
+
+      leaf description {
+        type string;
+        description "Human-Friendly Description of BFD Template Instance";
+      }
+
+      leaf name {
+        type string {
+          length "1..32";
+        }
+        mandatory true;
+        description "Name of BFD Template Instance";
+      }
+
+      leaf interval {
+        type uint32 {
+          range "10..100000";
+        }
+        mandatory true;
+        description "Interval (milliseconds) to use for BFD messages (transmit/receive/etc.)";
+      }
+
+      leaf multiplier {
+        type uint8 {
+          range "1..20";
+        }
+        mandatory true;
+        description "Multiplier to use for BFD timers";
+      }
+    }
+    list sbfd-reflector {
+      key "uuid";
+      unique "device";
+
+      uses tailf-ncs:service-data;
+      tailf-ncs:servicepoint "esnet-sbfd-reflector";
+      description "List of s-BFD Reflector Instances";
+
+      leaf uuid {
+        type ietf-yang-types:uuid;
+        mandatory true;
+        description "UUID that can be used to uniquely identify this BFD reflector instance";
+      }
+
+      leaf device {
+        type leafref {
+          path "/tailf-ncs:devices/tailf-ncs:device/tailf-ncs:name";
+        }
+        must "/tailf-ncs:devices/tailf-ncs:device[tailf-ncs:name=current()]/esnet-common:role[. = 'core-router']" {
+          error-message "The device must be a core-router";
+        }
+        description "Device";
+      }
+
+      leaf description {
+        type string;
+        description "Human-Friendly Description of this s-BFD Reflector Instance";
+      }
+
+      leaf name {
+        type string {
+          length "1..32";
+        }
+        mandatory true;
+        description "Name of this s-BFD Reflector Instance";
+      }
+
+      leaf discriminator {
+        type uint32 {
+          range "524288..526335";
+        }
+        mandatory true;
+        description "Discriminator for this s-BFD reflector instance. Must be unique per-device within an administrative/IGP domain.";
+      }
+    }
+  }
+}
